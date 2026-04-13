@@ -20,13 +20,9 @@ jobs:
       - name: Extract diff
         id: diff
         run: |
-          DIFF=$(git diff origin/${{ github.base_ref }}...HEAD | head -c 10000)
-          {
-            echo "content<<DIFF_EOF"
-            echo "$DIFF"
-            echo "DIFF_EOF"
-            echo "size=${#DIFF}"
-          } >> "$GITHUB_OUTPUT"
+          git diff origin/${{ github.base_ref }}...HEAD | head -c 10000 > /tmp/review-diff.txt
+          DIFF_SIZE=$(wc -c < /tmp/review-diff.txt)
+          echo "size=$DIFF_SIZE" >> "$GITHUB_OUTPUT"
 
       - name: Check diff size
         id: check
@@ -45,7 +41,7 @@ jobs:
           REVIEW_SECRET:     ${{ secrets.REVIEW_SECRET }}
         run: |
           PAYLOAD=$(jq -n \
-            --arg diff        "${{ steps.diff.outputs.content }}" \
+            --rawfile diff   /tmp/review-diff.txt \
             --arg pr_title    "${{ github.event.pull_request.title }}" \
             --arg pr_author   "${{ github.event.pull_request.user.login }}" \
             --arg repo        "${{ github.repository }}" \
