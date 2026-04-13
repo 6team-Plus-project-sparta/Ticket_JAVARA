@@ -1,24 +1,20 @@
 package com.example.ticket_javara.global.lock;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
-import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.List;
 
 /**
  * Lettuce SETNX 기반 분산락 구현체 (필수)
- * - lock.provider=lettuce 일 때 활성화 (matchIfMissing=true 이므로 기본값)
+ * - Bean 등록은 LockConfig에서 @ConditionalOnProperty로 관리 (ADR-002)
  * - tryLock: SETNX + TTL 설정 (원자적)
  * - unlock: Lua Script로 UUID 검증 후 DEL (본인 락만 해제)
- * 참고: CLAUDE.md §분산락 공통 모듈, 09_동시성_제어_설계서.md
+ * 참고: 09_동시성_제어_설계서.md, CLAUDE.md §분산락 공통 모듈
  */
 @Slf4j
-@Component
-@ConditionalOnProperty(name = "lock.provider", havingValue = "lettuce", matchIfMissing = true)
 public class LettuceDistributedLock implements DistributedLockProvider {
 
     private final StringRedisTemplate redisTemplate;
