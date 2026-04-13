@@ -78,7 +78,7 @@ public class AuthService {
         }
 
         // JWT Access Token 발급
-        String accessToken = jwtUtil.createAccessToken(user.getUserId(), user.getRole().name());
+        String accessToken = jwtUtil.createAccessToken(user.getUserId(), user.getEmail(), user.getRole().name());
 
         return LoginResponse.builder()
                 .accessToken(accessToken)
