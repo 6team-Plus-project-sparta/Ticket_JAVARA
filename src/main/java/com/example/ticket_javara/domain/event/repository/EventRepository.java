@@ -22,5 +22,5 @@ public interface EventRepository extends JpaRepository<Event, Long> {
      * 이벤트 수정 시 @CacheEvict 필요
      */
     @Cacheable(value = "event-detail", key = "#eventId")
-    Optional<Event> findCachedById(Long eventId);
+    Optional<Event> findById(Long eventId);//findCachedById;
 }
