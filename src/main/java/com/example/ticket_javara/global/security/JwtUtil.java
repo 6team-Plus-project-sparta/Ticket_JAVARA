@@ -35,8 +35,7 @@ public class JwtUtil {
     public void init() {
         // Base64 인코딩된 시크릿 키 디코딩
         byte[] keyBytes = Decoders.BASE64.decode(
-                java.util.Base64.getEncoder().encodeToString(secretKeyString.getBytes())
-        );
+                java.util.Base64.getEncoder().encodeToString(secretKeyString.getBytes()));
         this.secretKey = Keys.hmacShaKeyFor(keyBytes);
     }
 
@@ -44,12 +43,13 @@ public class JwtUtil {
      * AccessToken 생성
      * payload: { userId, role }
      */
-    public String createAccessToken(Long userId, String role) {
+    public String createAccessToken(Long userId, String email, String role) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + expiration);
 
         return Jwts.builder()
                 .claim("userId", userId)
+                .claim("email", email)
                 .claim("role", role)
                 .issuedAt(now)
                 .expiration(expiryDate)

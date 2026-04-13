@@ -31,8 +31,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
+            HttpServletResponse response,
+            FilterChain filterChain) throws ServletException, IOException {
         String token = extractToken(request);
 
         if (StringUtils.hasText(token) && jwtUtil.validateToken(token)) {
@@ -40,12 +40,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             String role = jwtUtil.getRole(token);
 
             // SecurityContext에 인증 정보 주입
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(
-                            userId,                                        // principal: userId
-                            null,
-                            List.of(new SimpleGrantedAuthority("ROLE_" + role))
-                    );
+            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                    userId, // principal: userId
+                    null,
+                    List.of(new SimpleGrantedAuthority("ROLE_" + role)));
             SecurityContextHolder.getContext().setAuthentication(authentication);
             log.debug("[JwtAuthFilter] 인증 성공: userId={}, role={}", userId, role);
         }
@@ -63,4 +61,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
         return null;
     }
+
+    // JwtAuthFilter.java — shouldNotFilter 오버라이드 추가
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return path.startsWith("/api/auth/");
+    }
+
 }
