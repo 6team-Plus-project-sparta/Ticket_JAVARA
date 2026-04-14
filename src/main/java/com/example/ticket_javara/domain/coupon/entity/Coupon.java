@@ -71,13 +71,17 @@ public class Coupon extends com.example.ticket_javara.global.common.BaseTimeEnti
     }
 
     /** 발급 가능 여부 확인 */
-    public boolean isIssuable() {
-        LocalDateTime now = LocalDateTime.now();
+    public boolean isIssuable(LocalDateTime now) {
         return !now.isBefore(startAt) && !now.isAfter(expiredAt) && remainingQuantity > 0;
     }
 
     /** 발급 시작 전 여부 */
-    public boolean isNotStarted() {
-        return LocalDateTime.now().isBefore(startAt);
+    public boolean isNotStarted(LocalDateTime now) {
+        return now.isBefore(startAt);
+    }
+
+    /** 쿠폰 발급 만료 여부 */
+    public boolean isExpired(LocalDateTime now) {
+        return now.isAfter(expiredAt);
     }
 }

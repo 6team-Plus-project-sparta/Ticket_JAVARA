@@ -18,8 +18,8 @@ import java.io.IOException;
  * JwtAuthFilter에서 저장한 "jwt.error" request attribute로 만료(A003) / 무효(A002)를 구분한다.
  *
  * - jwt.error = "EXPIRED" → EXPIRED_TOKEN (A003) 인증이 만료되었습니다.
- * - jwt.error = "INVALID" → INVALID_TOKEN  (A002) 유효하지 않은 토큰입니다.
- * - jwt.error = null      → INVALID_TOKEN  (A002) 토큰 없이 인증 필요 API 접근
+ * - jwt.error = "INVALID" → INVALID_TOKEN (A002) 유효하지 않은 토큰입니다.
+ * - jwt.error = null → INVALID_TOKEN (A002) 토큰 없이 인증 필요 API 접근
  */
 @Component
 @RequiredArgsConstructor
@@ -29,14 +29,14 @@ public class JwtAuthEntryPoint implements AuthenticationEntryPoint {
 
     @Override
     public void commence(HttpServletRequest request,
-                         HttpServletResponse response,
-                         AuthenticationException authException) throws IOException {
+            HttpServletResponse response,
+            AuthenticationException authException) throws IOException {
 
         // 필터에서 저장한 jwt.error 속성으로 만료 vs 무효 구분
         String jwtError = (String) request.getAttribute("jwt.error");
         ErrorCode errorCode = "EXPIRED".equals(jwtError)
-                ? ErrorCode.EXPIRED_TOKEN   // A003 — 인증이 만료되었습니다.
-                : ErrorCode.INVALID_TOKEN;  // A002 — 유효하지 않은 토큰입니다.
+                ? ErrorCode.EXPIRED_TOKEN // A003 — 인증이 만료되었습니다.
+                : ErrorCode.INVALID_TOKEN; // A002 — 유효하지 않은 토큰입니다.
 
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
