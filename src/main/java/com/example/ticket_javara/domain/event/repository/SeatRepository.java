@@ -25,4 +25,9 @@ public interface SeatRepository extends JpaRepository<Seat, Long> {
            "WHERE s.section.event.eventId = :eventId " +
            "AND NOT EXISTS (SELECT 1 FROM ActiveBooking ab WHERE ab.seatId = s.seatId)")
     long countAvailableSeatsByEventId(@Param("eventId") Long eventId);
+
+    @Query("SELECT COUNT(s) FROM Seat s " +
+           "WHERE s.section.sectionId = :sectionId " +
+           "AND NOT EXISTS (SELECT 1 FROM ActiveBooking ab WHERE ab.seatId = s.seatId)")
+    long countAvailableSeatsBySectionId(@Param("sectionId") Long sectionId);
 }

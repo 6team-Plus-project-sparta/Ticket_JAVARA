@@ -1,6 +1,7 @@
 package com.example.ticket_javara.domain.event.repository;
 
 import com.example.ticket_javara.domain.event.entity.Event;
+import com.example.ticket_javara.domain.event.entity.EventCategory;
 import com.example.ticket_javara.domain.event.entity.EventStatus;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -23,4 +24,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
      */
     @Cacheable(value = "event-detail", key = "#eventId")
     Optional<Event> findById(Long eventId);//findCachedById;
+
+    Page<Event> findByCategory(EventCategory category, Pageable pageable);
+
+    Page<Event> findByCategoryAndStatus(EventCategory category, EventStatus status, Pageable pageable);
 }
