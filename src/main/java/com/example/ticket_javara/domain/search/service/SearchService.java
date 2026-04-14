@@ -29,7 +29,7 @@ public class SearchService {
         Page<EventSummaryResponseDto> result = mapToSummary(events);
 
         long endTime = System.currentTimeMillis();
-        //v1검색 소요시간 체크
+        // v1검색 소요시간 체크
         log.info("[V1 Search] query execution time: {} ms", (endTime - startTime));
 
         return result;
@@ -37,7 +37,7 @@ public class SearchService {
 
     @org.springframework.cache.annotation.Cacheable(value = "event-search", keyGenerator = "eventSearchKeyGenerator")
     public Page<EventSummaryResponseDto> searchEventsV2(SearchRequestDto requestDto, Pageable pageable) {
-        jakarta.servlet.http.HttpServletResponse response = 
+        jakarta.servlet.http.HttpServletResponse response =
                 ((org.springframework.web.context.request.ServletRequestAttributes) org.springframework.web.context.request.RequestContextHolder.currentRequestAttributes()).getResponse();
         if (response != null) {
             response.setHeader("X-Cache", "MISS");
@@ -50,7 +50,7 @@ public class SearchService {
         Page<EventSummaryResponseDto> result = mapToSummary(events);
 
         long endTime = System.currentTimeMillis();
-        //v2검색 소요시간 체크
+        // v2검색 소요시간 체크
         log.info("[V2 Search] query execution time: {} ms", (endTime - startTime));
 
         return result;
