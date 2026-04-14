@@ -33,10 +33,19 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/ticket-javara:latest
-            docker stop ticket-javara || true
-            docker rm ticket-javara || true
+
+            # 기존 컨테이너를 old로 이름 변경 후 중지 (새 컨테이너 뜨는 동안 유지)
+            docker rename ticket-javara ticket-javara-old || true
+            docker stop ticket-javara-old || true
+
+            # 새 컨테이너 실행 (볼륨 마운트로 데이터 영속성 보장)
             docker run -d \
               --name ticket-javara \
               --restart always \
               -p 8080:8080 \
+              -v /home/${{ secrets.EC2_USER }}/app-data:/app/data \
               ${{ secrets.DOCKERHUB_USERNAME }}/ticket-javara:latest
+
+            # 10초 후 새 컨테이너 정상 확인 후 구 컨테이너 삭제
+            sleep 10
+            docker rm -f ticket-javara-old || true
