@@ -46,15 +46,19 @@ public class Coupon extends com.example.ticket_javara.global.common.BaseTimeEnti
     @Column(nullable = false)
     private LocalDateTime expiredAt;
 
+    @Column(length = 500)
+    private String imageUrl;
+
     @Builder
     public Coupon(String name, Integer discountAmount, Integer totalQuantity,
-                  LocalDateTime startAt, LocalDateTime expiredAt) {
+                  LocalDateTime startAt, LocalDateTime expiredAt, String imageUrl) {
         this.name = name;
         this.discountAmount = discountAmount;
         this.totalQuantity = totalQuantity;
         this.remainingQuantity = totalQuantity;
         this.startAt = startAt;
         this.expiredAt = expiredAt;
+        this.imageUrl = imageUrl;
     }
 
     // ── 비즈니스 메서드 ──

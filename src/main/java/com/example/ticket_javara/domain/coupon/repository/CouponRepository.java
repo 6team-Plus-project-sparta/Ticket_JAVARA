@@ -18,4 +18,6 @@ public interface CouponRepository extends JpaRepository<Coupon, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT c FROM Coupon c WHERE c.couponId = :couponId")
     Optional<Coupon> findByIdWithLock(@Param("couponId") Long couponId);
+
+    org.springframework.data.domain.Slice<Coupon> findAllByOrderByCouponIdDesc(org.springframework.data.domain.Pageable pageable);
 }

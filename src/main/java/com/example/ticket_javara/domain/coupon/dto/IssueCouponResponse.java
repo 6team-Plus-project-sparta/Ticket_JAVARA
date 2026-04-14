@@ -18,6 +18,8 @@ public class IssueCouponResponse {
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime expiredAt;
 
+    private String imageUrl;
+
     public static IssueCouponResponse from(UserCoupon userCoupon, String message) {
         return IssueCouponResponse.builder()
                 .message(message)
@@ -25,6 +27,7 @@ public class IssueCouponResponse {
                 .couponName(userCoupon.getCoupon().getName())
                 .discountAmount(userCoupon.getCoupon().getDiscountAmount())
                 .expiredAt(userCoupon.getCoupon().getExpiredAt())
+                .imageUrl(userCoupon.getCoupon().getImageUrl())
                 .build();
     }
 }
