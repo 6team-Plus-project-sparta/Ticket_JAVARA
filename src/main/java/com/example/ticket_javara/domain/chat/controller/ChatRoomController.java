@@ -13,9 +13,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
-
-@RestController
+import com.example.ticket_javara.domain.chat.dto.ChatRoomCloseResponse;
+import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api")
 @RequiredArgsConstructor
 public class ChatRoomController {
@@ -42,15 +41,17 @@ public class ChatRoomController {
     }
 
     @PatchMapping("/chat/rooms/{chatRoomId}/close")
-    public ResponseEntity<Map<String, Object>> closeRoom(
+    public ResponseEntity<ChatRoomCloseResponse> closeRoom(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable Long chatRoomId) {
         
         chatRoomService.closeRoom(chatRoomId, userDetails.getUserId(), userDetails.getRole());
-        return ResponseEntity.ok(Map.of(
-                "message", "채팅방이 종료되었습니다.",
-                "chatRoomId", chatRoomId
-        ));
+        return ResponseEntity.ok(
+                ChatRoomCloseResponse.builder()
+                        .message("채팅방이 종료되었습니다.")
+                        .chatRoomId(chatRoomId)
+                        .build()
+        );
     }
 
     @GetMapping("/admin/chat/rooms")

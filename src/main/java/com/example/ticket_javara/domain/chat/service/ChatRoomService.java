@@ -71,6 +71,10 @@ public class ChatRoomService {
 
     @Transactional(readOnly = true)
     public ChatHistoryResponse getChatHistory(Long chatRoomId, Long cursor, int size, Long userId, String userRole) {
+        
+        // 메모리 보호 (OOM 방지)
+        int limitedSize = Math.min(size, 100);
+
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.CHAT_ROOM_NOT_FOUND));
 
@@ -80,11 +84,11 @@ public class ChatRoomService {
         }
 
         // 실제 가져올 때 size + 1을 가져와서 hasNext 여부 판단
-        List<ChatMessage> messages = chatMessageRepository.getMessagesWithCursor(chatRoomId, cursor, size + 1);
+        List<ChatMessage> messages = chatMessageRepository.getMessagesWithCursor(chatRoomId, cursor, limitedSize + 1);
 
-        boolean hasNext = messages.size() > size;
+        boolean hasNext = messages.size() > limitedSize;
         if (hasNext) {
-            messages.remove(size);
+            messages.remove(limitedSize);
         }
 
         List<ChatMessageResponse> messageResponses = messages.stream()

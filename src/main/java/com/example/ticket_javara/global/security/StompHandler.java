@@ -10,6 +10,7 @@ import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -38,11 +39,16 @@ public class StompHandler implements ChannelInterceptor {
                 throw new ForbiddenException(ErrorCode.INVALID_TOKEN);
             }
             
-            // 토큰이 유효하면 세션에 userId, role 등을 저장할 수 있음
+            // 토큰이 유효하면 Principal을 생성하여 세션에 명시적 주입
             Long userId = jwtUtil.getUserId(token);
             String role = jwtUtil.getRole(token);
-            accessor.getSessionAttributes().put("userId", userId);
-            accessor.getSessionAttributes().put("role", role);
+            String email = jwtUtil.getEmail(token);
+
+            CustomUserDetails customUserDetails = new CustomUserDetails(userId, email, role);
+            UsernamePasswordAuthenticationToken authentication =
+                    new UsernamePasswordAuthenticationToken(customUserDetails, null, customUserDetails.getAuthorities());
+
+            accessor.setUser(authentication);
         }
 
         return message;
