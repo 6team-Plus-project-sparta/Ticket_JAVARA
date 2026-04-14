@@ -9,8 +9,8 @@ taskkill /F /PID 프로세스id
 
 
 # MySQL 접속
-mysql -u root -p
-1234
+mysql -u db사용자이름 -p
+db비밀번호
 
 # DB 선택
 use ticketjavara;
