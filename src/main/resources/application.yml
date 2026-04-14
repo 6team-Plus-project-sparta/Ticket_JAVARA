@@ -3,3 +3,6 @@ spring:
     name: ticket-javara
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:local}
+  cache:
+    caffeine:
+      spec: maximumSize=1000,expireAfterWrite=5m
