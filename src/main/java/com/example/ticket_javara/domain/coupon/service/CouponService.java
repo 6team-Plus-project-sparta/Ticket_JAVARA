@@ -68,6 +68,9 @@ public class CouponService {
         if (coupon.isNotStarted()) {
             throw new BusinessException(ErrorCode.COUPON_NOT_STARTED);
         }
+        if (coupon.isExpired()) {
+            throw new BusinessException(ErrorCode.COUPON_EXPIRED);
+        }
         if (coupon.getRemainingQuantity() <= 0) {
             throw new BusinessException(ErrorCode.COUPON_EXHAUSTED);
         }

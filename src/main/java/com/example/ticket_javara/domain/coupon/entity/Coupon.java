@@ -80,4 +80,9 @@ public class Coupon extends com.example.ticket_javara.global.common.BaseTimeEnti
     public boolean isNotStarted() {
         return LocalDateTime.now().isBefore(startAt);
     }
+
+    /** 쿠폰 발급 만료 여부 */
+    public boolean isExpired() {
+        return LocalDateTime.now().isAfter(expiredAt);
+    }
 }
