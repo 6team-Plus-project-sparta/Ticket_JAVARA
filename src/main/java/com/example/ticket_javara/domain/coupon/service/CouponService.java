@@ -12,6 +12,7 @@ import com.example.ticket_javara.domain.user.repository.UserRepository;
 import com.example.ticket_javara.global.exception.BusinessException;
 import com.example.ticket_javara.global.exception.ErrorCode;
 import com.example.ticket_javara.global.exception.NotFoundException;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -65,10 +66,11 @@ public class CouponService {
         Coupon coupon = couponRepository.findById(couponId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.COUPON_NOT_FOUND));
 
-        if (coupon.isNotStarted()) {
+        LocalDateTime now = LocalDateTime.now();
+        if (coupon.isNotStarted(now)) {
             throw new BusinessException(ErrorCode.COUPON_NOT_STARTED);
         }
-        if (coupon.isExpired()) {
+        if (coupon.isExpired(now)) {
             throw new BusinessException(ErrorCode.COUPON_EXPIRED);
         }
         if (coupon.getRemainingQuantity() <= 0) {
@@ -142,11 +144,16 @@ public class CouponService {
         Coupon lockedCoupon = couponRepository.findByIdWithLock(couponId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.COUPON_NOT_FOUND));
 
-        if (!lockedCoupon.isIssuable()) {
-            if (lockedCoupon.getRemainingQuantity() <= 0) {
-                throw new BusinessException(ErrorCode.COUPON_EXHAUSTED);
-            }
+        LocalDateTime now = LocalDateTime.now();
+        if (lockedCoupon.isNotStarted(now)) {
             throw new BusinessException(ErrorCode.COUPON_NOT_STARTED);
+        }
+        if (lockedCoupon.isExpired(now)) {
+            throw new BusinessException(ErrorCode.COUPON_EXPIRED);
+        }
+        
+        if (lockedCoupon.getRemainingQuantity() <= 0) {
+            throw new BusinessException(ErrorCode.COUPON_EXHAUSTED);
         }
 
         lockedCoupon.decreaseRemainingQuantity();
