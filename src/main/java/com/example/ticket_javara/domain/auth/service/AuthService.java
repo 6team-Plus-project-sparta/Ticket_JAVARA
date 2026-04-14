@@ -39,7 +39,7 @@ public class AuthService {
     public SignupResponse signup(SignupRequest request) {
         // 이메일 중복 검사
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new ConflictException(ErrorCode.DUPLICATE_EMAIL);
+            throw new ConflictException(ErrorCode.EMAIL_DUPLICATED);
         }
 
         // 비밀번호 BCrypt 암호화
@@ -70,11 +70,11 @@ public class AuthService {
     public LoginResponse login(LoginRequest request) {
         // 이메일로 사용자 조회 (없으면 인증 실패 동일 메시지)
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new NotFoundException(ErrorCode.INVALID_CREDENTIALS));
+                .orElseThrow(() -> new NotFoundException(ErrorCode.AUTHENTICATION_FAILED));
 
         // 비밀번호 검증
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new NotFoundException(ErrorCode.INVALID_CREDENTIALS);
+            throw new NotFoundException(ErrorCode.AUTHENTICATION_FAILED);
         }
 
         // JWT Access Token 발급

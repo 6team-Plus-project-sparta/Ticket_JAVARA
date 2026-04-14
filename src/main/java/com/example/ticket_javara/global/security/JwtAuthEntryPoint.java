@@ -35,8 +35,8 @@ public class JwtAuthEntryPoint implements AuthenticationEntryPoint {
         // 필터에서 저장한 jwt.error 속성으로 만료 vs 무효 구분
         String jwtError = (String) request.getAttribute("jwt.error");
         ErrorCode errorCode = "EXPIRED".equals(jwtError)
-                ? ErrorCode.TOKEN_EXPIRED   // A004 — 토큰이 만료되었습니다.
-                : ErrorCode.TOKEN_INVALID;  // A005 — 유효하지 않은 토큰입니다.
+                ? ErrorCode.EXPIRED_TOKEN   // A003 — 인증이 만료되었습니다.
+                : ErrorCode.INVALID_TOKEN;  // A002 — 유효하지 않은 토큰입니다.
 
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
