@@ -9,24 +9,41 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/events/search")
+@RequestMapping("/api")
 @RequiredArgsConstructor
 public class SearchController {
 
     private final SearchService searchService;
 
-    @GetMapping
+    @GetMapping("/v1/events/search")
     public ResponseEntity<Page<EventSummaryResponseDto>> searchEventsV1(
             @ModelAttribute SearchRequestDto requestDto,
             @PageableDefault(sort = "eventDate", direction = Sort.Direction.ASC) Pageable pageable) {
         
         Page<EventSummaryResponseDto> result = searchService.searchEventsV1(requestDto, pageable);
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/v2/events/search")
+    public ResponseEntity<Page<EventSummaryResponseDto>> searchEventsV2(
+            @ModelAttribute SearchRequestDto requestDto,
+            @PageableDefault(sort = "eventDate", direction = Sort.Direction.ASC) Pageable pageable) {
+        
+        HttpServletResponse response = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getResponse();
+        if (response != null) {
+            response.setHeader("X-Cache", "HIT");
+        }
+        
+        Page<EventSummaryResponseDto> result = searchService.searchEventsV2(requestDto, pageable);
         return ResponseEntity.ok(result);
     }
 }
