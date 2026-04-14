@@ -51,7 +51,7 @@ services:
       SPRING_DATA_REDIS_PORT: 6379
       JWT_SECRET: ${JWT_SECRET}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 10s
       timeout: 5s
       retries: 12

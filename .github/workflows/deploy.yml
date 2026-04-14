@@ -18,14 +18,12 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: 이미지 빌드 & 푸시 (커밋 해시 태그 + latest)
+      - name: 이미지 빌드 & 푸시 (커밋 해시 태그만 사용)
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/ticket-javara:${{ github.sha }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/ticket-javara:latest
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/ticket-javara:${{ github.sha }}
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/ticket-javara:latest
           cache-to: type=inline
 
@@ -47,7 +45,10 @@ jobs:
           script: |
             cd /home/${{ secrets.EC2_USER }}
 
-            # 환경변수 파일 생성
+            # 현재 배포 중인 버전을 이전 버전으로 저장 (롤백용)
+            PREVIOUS_TAG=$(cat .previous_tag 2>/dev/null || echo "")
+
+            # 환경변수 파일 생성 (IMAGE_TAG = 새 커밋 해시)
             cat > .env << EOF
             DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
             IMAGE_TAG=${{ github.sha }}
@@ -66,7 +67,9 @@ jobs:
             for i in $(seq 1 12); do
               STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/actuator/health)
               if [ "$STATUS" = "200" ]; then
-                echo "✅ 배포 성공! (${i}번째 시도)"
+                echo "✅ 배포 성공!"
+                # 배포 성공 시 현재 SHA를 이전 버전으로 기록
+                echo "${{ github.sha }}" > .previous_tag
                 exit 0
               fi
               echo "⏳ 대기 중... (${i}/12)"
@@ -75,5 +78,11 @@ jobs:
 
             # 헬스체크 실패 시 이전 버전으로 롤백
             echo "❌ 헬스체크 실패 - 이전 버전으로 롤백"
-            IMAGE_TAG=latest docker compose --env-file .env up -d --no-deps app
+            if [ -n "$PREVIOUS_TAG" ]; then
+              sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=${PREVIOUS_TAG}/" .env
+              docker compose --env-file .env up -d --no-deps app
+              echo "↩️ ${PREVIOUS_TAG} 버전으로 롤백 완료"
+            else
+              echo "⚠️ 이전 버전 정보 없음 - 롤백 불가"
+            fi
             exit 1
