@@ -4,10 +4,12 @@ import com.example.ticket_javara.domain.coupon.dto.CreateCouponRequest;
 import com.example.ticket_javara.domain.coupon.dto.CreateCouponResponse;
 import com.example.ticket_javara.domain.coupon.dto.IssueCouponResponse;
 import com.example.ticket_javara.domain.coupon.service.CouponService;
+import com.example.ticket_javara.global.security.CustomUserDetails;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -23,8 +25,9 @@ public class CouponController {
      */
     @PostMapping("/admin/coupons")
     public ResponseEntity<CreateCouponResponse> createCoupon(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody CreateCouponRequest request) {
-        CreateCouponResponse response = couponService.createCoupon(request);
+        CreateCouponResponse response = couponService.createCoupon(userDetails.getRole(), request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -33,8 +36,9 @@ public class CouponController {
      */
     @PostMapping("/coupons/{couponId}/issue")
     public ResponseEntity<IssueCouponResponse> issueCoupon(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable Long couponId) {
-        IssueCouponResponse response = couponService.issueCoupon(couponId);
+        IssueCouponResponse response = couponService.issueCoupon(userDetails.getUserId(), couponId);
         return ResponseEntity.ok(response);
     }
 }

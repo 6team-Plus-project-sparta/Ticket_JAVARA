@@ -13,10 +13,8 @@ import com.example.ticket_javara.global.exception.BusinessException;
 import com.example.ticket_javara.global.exception.ErrorCode;
 import com.example.ticket_javara.global.exception.ForbiddenException;
 import com.example.ticket_javara.global.exception.NotFoundException;
-import com.example.ticket_javara.global.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
@@ -37,9 +35,9 @@ public class CouponService {
     private static final String REDIS_STOCK_KEY_PREFIX = "coupon:stock:";
 
     @Transactional
-    public CreateCouponResponse createCoupon(CreateCouponRequest request) {
+    public CreateCouponResponse createCoupon(String userRole, CreateCouponRequest request) {
         // ADMIN 권한 검증
-        if (!"ADMIN".equals(SecurityUtil.getCurrentUserRole())) {
+        if (!"ADMIN".equals(userRole)) {
             throw new ForbiddenException(ErrorCode.ADMIN_ONLY);
         }
 
@@ -62,8 +60,7 @@ public class CouponService {
     }
 
     @Transactional
-    public IssueCouponResponse issueCoupon(Long couponId) {
-        Long userId = SecurityUtil.getCurrentUserId();
+    public IssueCouponResponse issueCoupon(Long userId, Long couponId) {
 
         // 1. 발급 전 선행 체크 (중복 & 발급 시간)
         // Spring Data JPA 명명 규칙 반영: existsByUserUserIdAndCouponCouponId 사용
@@ -109,12 +106,12 @@ public class CouponService {
 
     /**
      * Redis Lua Script 원자적 차감
+     * 
      * @return true - 1 감소됨, 예외 발생 시 false 반환
-     * 0을 반환하거나 RuntimeException 던질 때 대응
+     *         0을 반환하거나 RuntimeException 던질 때 대응
      */
     private boolean decrementStockInRedis(String key) {
-        String scriptText =
-                "local stock = redis.call('DECR', KEYS[1]) \n" +
+        String scriptText = "local stock = redis.call('DECR', KEYS[1]) \n" +
                 "if stock < 0 then \n" +
                 "   redis.call('INCR', KEYS[1]) \n" +
                 "   return -1 \n" +
