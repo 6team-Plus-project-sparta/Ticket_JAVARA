@@ -18,12 +18,25 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: 이미지 빌드 & 푸시
+      - name: 이미지 빌드 & 푸시 (커밋 해시 태그 + latest)
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/ticket-javara:latest
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/ticket-javara:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/ticket-javara:latest
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/ticket-javara:latest
+          cache-to: type=inline
+
+      - name: docker-compose.yml EC2에 전송
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "docker-compose.yml"
+          target: "/home/${{ secrets.EC2_USER }}"
 
       - name: EC2 배포
         uses: appleboy/ssh-action@v1
@@ -32,20 +45,35 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/ticket-javara:latest
+            cd /home/${{ secrets.EC2_USER }}
 
-            # 기존 컨테이너를 old로 이름 변경 후 중지 (새 컨테이너 뜨는 동안 유지)
-            docker rename ticket-javara ticket-javara-old || true
-            docker stop ticket-javara-old || true
+            # 환경변수 파일 생성
+            cat > .env << EOF
+            DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+            IMAGE_TAG=${{ github.sha }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            EOF
 
-            # 새 컨테이너 실행 (볼륨 마운트로 데이터 영속성 보장)
-            docker run -d \
-              --name ticket-javara \
-              --restart always \
-              -p 8080:8080 \
-              -v /home/${{ secrets.EC2_USER }}/app-data:/app/data \
-              ${{ secrets.DOCKERHUB_USERNAME }}/ticket-javara:latest
+            # 새 앱 이미지 Pull
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/ticket-javara:${{ github.sha }}
 
-            # 10초 후 새 컨테이너 정상 확인 후 구 컨테이너 삭제
-            sleep 10
-            docker rm -f ticket-javara-old || true
+            # MySQL, Redis는 유지하고 앱만 재시작
+            docker compose --env-file .env up -d --no-deps app
+
+            # Actuator 헬스체크 - 5초 간격 최대 60초 대기
+            echo "헬스체크 시작..."
+            for i in $(seq 1 12); do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/actuator/health)
+              if [ "$STATUS" = "200" ]; then
+                echo "✅ 배포 성공! (${i}번째 시도)"
+                exit 0
+              fi
+              echo "⏳ 대기 중... (${i}/12)"
+              sleep 5
+            done
+
+            # 헬스체크 실패 시 이전 버전으로 롤백
+            echo "❌ 헬스체크 실패 - 이전 버전으로 롤백"
+            IMAGE_TAG=latest docker compose --env-file .env up -d --no-deps app
+            exit 1
