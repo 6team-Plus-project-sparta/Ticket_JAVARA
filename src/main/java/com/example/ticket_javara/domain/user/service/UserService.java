@@ -61,8 +61,13 @@ public class UserService {
 
         // 비밀번호 변경
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            // 현재 비밀번호 값 누락 및 공백 사전 차단 (보안 취약점 및 불필요한 Bcrypt 연산 방지)
+            if (request.getCurrentPassword() == null || request.getCurrentPassword().trim().isEmpty()) {
+                throw new BusinessException(ErrorCode.INVALID_CURRENT_PASSWORD);
+            }
+
             // 현재 비밀번호 검증
-            if (request.getCurrentPassword() == null || !passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
                 throw new BusinessException(ErrorCode.INVALID_CURRENT_PASSWORD);
             }
             String encodedNewPassword = passwordEncoder.encode(request.getPassword());
