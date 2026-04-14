@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,10 +25,10 @@ public class CouponController {
      * ADMIN 권한 확인 (서비스 단에서 처리/확인)
      */
     @PostMapping("/admin/coupons")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<CreateCouponResponse> createCoupon(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody CreateCouponRequest request) {
-        CreateCouponResponse response = couponService.createCoupon(userDetails.getRole(), request);
+        CreateCouponResponse response = couponService.createCoupon(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 

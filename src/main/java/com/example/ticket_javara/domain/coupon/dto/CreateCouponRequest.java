@@ -5,6 +5,8 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.AssertTrue;
 
 @Getter
 @NoArgsConstructor
@@ -13,9 +15,11 @@ public class CreateCouponRequest {
     private String name;
     
     @NotNull
+    @Min(1)
     private Integer discountAmount;
     
     @NotNull
+    @Min(1)
     private Integer totalQuantity;
     
     @NotNull
@@ -23,4 +27,10 @@ public class CreateCouponRequest {
     
     @NotNull
     private LocalDateTime expiredAt;
+
+    @AssertTrue(message = "시작일은 만료일보다 이전이어야 합니다.")
+    public boolean isValidDateRange() {
+        if (startAt == null || expiredAt == null) return true;
+        return startAt.isBefore(expiredAt);
+    }
 }

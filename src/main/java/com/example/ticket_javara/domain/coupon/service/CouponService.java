@@ -11,7 +11,6 @@ import com.example.ticket_javara.domain.user.entity.User;
 import com.example.ticket_javara.domain.user.repository.UserRepository;
 import com.example.ticket_javara.global.exception.BusinessException;
 import com.example.ticket_javara.global.exception.ErrorCode;
-import com.example.ticket_javara.global.exception.ForbiddenException;
 import com.example.ticket_javara.global.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,12 +34,7 @@ public class CouponService {
     private static final String REDIS_STOCK_KEY_PREFIX = "coupon:stock:";
 
     @Transactional
-    public CreateCouponResponse createCoupon(String userRole, CreateCouponRequest request) {
-        // ADMIN 권한 검증
-        if (!"ADMIN".equals(userRole)) {
-            throw new ForbiddenException(ErrorCode.ADMIN_ONLY);
-        }
-
+    public CreateCouponResponse createCoupon(CreateCouponRequest request) {
         // Coupon 생성
         Coupon coupon = Coupon.builder()
                 .name(request.getName())
