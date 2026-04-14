@@ -4,11 +4,12 @@ import com.example.ticket_javara.domain.booking.dto.request.OrderCreateRequestDt
 import com.example.ticket_javara.domain.booking.dto.response.OrderResponseDto;
 import com.example.ticket_javara.domain.booking.service.OrderService;
 import com.example.ticket_javara.global.common.ApiResponse;
-import com.example.ticket_javara.global.util.SecurityUtil;
+import com.example.ticket_javara.global.security.CustomUserDetails;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -37,9 +38,10 @@ public class OrderController {
      */
     @PostMapping
     public ResponseEntity<ApiResponse<OrderResponseDto>> createOrder(
-            @Valid @RequestBody OrderCreateRequestDto request) {
+            @Valid @RequestBody OrderCreateRequestDto request,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-        Long userId = SecurityUtil.getCurrentUserId();
+        Long userId = userDetails.getUserId();
         log.info("[OrderController] 주문 생성 요청 userId={}, holdTokens={}", userId, request.getHoldTokens());
 
         OrderResponseDto response = orderService.createOrder(request, userId);

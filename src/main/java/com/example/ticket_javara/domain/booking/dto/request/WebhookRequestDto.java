@@ -17,7 +17,7 @@ public class WebhookRequestDto {
 
     /** "SUCCESS" 또는 "FAIL" */
     @NotNull
-    private String paymentStatus;
+    private WebhookPaymentStatus paymentStatus;
 
     /** PG 결제키 (성공 시 존재, 실패 시 null) */
     private String paymentKey;
