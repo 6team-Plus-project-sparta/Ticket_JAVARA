@@ -1,5 +1,6 @@
 package com.example.ticket_javara.domain.booking.service;
 
+import com.example.ticket_javara.domain.booking.dto.request.WebhookPaymentStatus;
 import com.example.ticket_javara.domain.booking.dto.request.WebhookRequestDto;
 import com.example.ticket_javara.domain.booking.dto.response.WebhookResponseDto;
 import com.example.ticket_javara.domain.booking.entity.*;
@@ -62,7 +63,7 @@ public class WebhookService {
      * paymentStatus == "FAIL"    → 예매 실패
      */
     public WebhookResponseDto processWebhook(WebhookRequestDto dto) {
-        if ("SUCCESS".equalsIgnoreCase(dto.getPaymentStatus())) {
+        if (WebhookPaymentStatus.SUCCESS.equals(dto.getPaymentStatus())) {
             return processSuccess(dto);
         } else {
             return processFail(dto);
@@ -90,6 +91,14 @@ public class WebhookService {
             log.warn("[WebhookService] PENDING 아닌 주문에 웹훅 수신 orderId={}, status={}",
                     dto.getOrderId(), order.getStatus());
             return new WebhookResponseDto("처리할 수 없는 주문 상태입니다.", dto.getOrderId(), null);
+        }
+
+        // ── ⭐ 결제 금액 2차 검증 (Critical 보안 포인트) ──
+        if (!order.getFinalAmount().equals(dto.getPaidAmount())) {
+            log.error("[WebhookService] 결제 금액 불일치. orderId={}, expected={}, actual={}",
+                    dto.getOrderId(), order.getFinalAmount(), dto.getPaidAmount());
+            failOrder(dto.getOrderId());
+            throw new InvalidRequestException(ErrorCode.VALIDATION_FAILED);
         }
 
         List<Booking> bookings = bookingRepository.findByOrderOrderId(order.getOrderId());

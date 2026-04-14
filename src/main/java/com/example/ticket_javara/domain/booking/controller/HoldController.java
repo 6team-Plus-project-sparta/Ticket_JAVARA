@@ -4,10 +4,13 @@ import com.example.ticket_javara.domain.booking.dto.response.HoldResponseDto;
 import com.example.ticket_javara.domain.booking.facade.HoldLockFacade;
 import com.example.ticket_javara.domain.booking.service.HoldService;
 import com.example.ticket_javara.global.common.ApiResponse;
-import com.example.ticket_javara.global.util.SecurityUtil;
+import com.example.ticket_javara.global.security.CustomUserDetails;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -20,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/events/{eventId}/seats/{seatId}/hold")
 @RequiredArgsConstructor
+@Validated
 public class HoldController {
 
     private final HoldLockFacade holdLockFacade;
@@ -36,10 +40,11 @@ public class HoldController {
      */
     @PostMapping
     public ResponseEntity<ApiResponse<HoldResponseDto>> holdSeat(
-            @PathVariable Long eventId,
-            @PathVariable Long seatId) {
+            @PathVariable @Positive(message = "eventId는 양수여야 합니다.") Long eventId,
+            @PathVariable @Positive(message = "seatId는 양수여야 합니다.") Long seatId,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-        Long userId = SecurityUtil.getCurrentUserId();
+        Long userId = userDetails.getUserId();
         log.info("[HoldController] Hold 요청 eventId={}, seatId={}, userId={}", eventId, seatId, userId);
 
         // HoldLockFacade: 분산락 획득 → HoldService.processHold() → 락 해제
@@ -56,10 +61,11 @@ public class HoldController {
      */
     @DeleteMapping
     public ResponseEntity<ApiResponse<Void>> releaseHold(
-            @PathVariable Long eventId,
-            @PathVariable Long seatId) {
+            @PathVariable @Positive(message = "eventId는 양수여야 합니다.") Long eventId,
+            @PathVariable @Positive(message = "seatId는 양수여야 합니다.") Long seatId,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-        Long userId = SecurityUtil.getCurrentUserId();
+        Long userId = userDetails.getUserId();
         log.info("[HoldController] Hold 해제 요청 eventId={}, seatId={}, userId={}", eventId, seatId, userId);
 
         holdService.releaseHold(eventId, seatId, userId);
