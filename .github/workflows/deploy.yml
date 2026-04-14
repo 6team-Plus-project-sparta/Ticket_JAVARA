@@ -1,0 +1,95 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Docker Hub 로그인
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: QEMU 설정 (ARM64 빌드 지원)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Docker Buildx 설정
+        uses: docker/setup-buildx-action@v3
+
+      - name: 이미지 빌드 & 푸시 (ARM64 대응)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          platforms: linux/arm64
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/ticket-javara:${{ github.sha }}
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/ticket-javara:latest
+          cache-to: type=inline
+
+      - name: docker-compose.yml EC2에 전송
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "docker-compose.yml"
+          target: "/home/${{ secrets.EC2_USER }}"
+
+      - name: EC2 배포
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /home/${{ secrets.EC2_USER }}
+
+            # 현재 배포 중인 버전을 이전 버전으로 저장 (롤백용)
+            PREVIOUS_TAG=$(cat .previous_tag 2>/dev/null || echo "")
+
+            # 환경변수 파일 생성 (IMAGE_TAG = 새 커밋 해시)
+            cat > .env << EOF
+            DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+            IMAGE_TAG=${{ github.sha }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            EOF
+
+            # 새 앱 이미지 Pull
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/ticket-javara:${{ github.sha }}
+
+            # MySQL, Redis는 유지하고 앱만 재시작
+            docker compose --env-file .env up -d --no-deps app
+
+            # Actuator 헬스체크 - 5초 간격 최대 60초 대기
+            echo "헬스체크 시작..."
+            for i in $(seq 1 12); do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/actuator/health)
+              if [ "$STATUS" = "200" ]; then
+                echo "✅ 배포 성공!"
+                # 배포 성공 시 현재 SHA를 이전 버전으로 기록
+                echo "${{ github.sha }}" > .previous_tag
+                exit 0
+              fi
+              echo "⏳ 대기 중... (${i}/12)"
+              sleep 5
+            done
+
+            # 헬스체크 실패 시 이전 버전으로 롤백
+            echo "❌ 헬스체크 실패 - 이전 버전으로 롤백"
+            if [ -n "$PREVIOUS_TAG" ]; then
+              sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=${PREVIOUS_TAG}/" .env
+              docker compose --env-file .env up -d --no-deps app
+              echo "↩️ ${PREVIOUS_TAG} 버전으로 롤백 완료"
+            else
+              echo "⚠️ 이전 버전 정보 없음 - 롤백 불가"
+            fi
+            exit 1
