@@ -4,10 +4,13 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 
+/**
+ * 에러 코드 Enum — 12_공통_에러코드_설계서.md 참조
+ * A(인증), U(사용자), E(이벤트), S(좌석/Hold), O(주문/예매), C(쿠폰), H(채팅), G(공통) 계열
+ */
 @Getter
 @RequiredArgsConstructor
 public enum ErrorCode {
-
 
     // ──────────────────────────────────────────────────
     // A: 인증 (Auth)
@@ -62,8 +65,7 @@ public enum ErrorCode {
     PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "O007", "결제 기록이 확인되지 않습니다. 확정을 중단합니다."),
     HOLDING_EXPIRED(HttpStatus.CONFLICT, "O008", "점유 시간이 만료된 좌석이 있습니다. 좌석을 다시 선택해주세요."),
     CANCEL_NOT_OWNED(HttpStatus.FORBIDDEN, "O009", "본인의 주문만 취소할 수 있습니다."),
-    BOOKING_NOT_PENDING(HttpStatus.BAD_REQUEST, "O010","PENDING 상태의 예매만 수동 확정할 수 있습니다."),
-
+    BOOKING_NOT_PENDING(HttpStatus.BAD_REQUEST, "O010", "PENDING 상태의 예매만 수동 확정할 수 있습니다."),
 
     // ──────────────────────────────────────────────────
     // C: 쿠폰 (Coupon)
@@ -92,8 +94,7 @@ public enum ErrorCode {
     INVALID_REQUEST(HttpStatus.BAD_REQUEST, "G003", "입력값이 올바르지 않습니다."),
     NOT_FOUND(HttpStatus.NOT_FOUND, "G004", "요청한 리소스를 찾을 수 없습니다."),
     ACCESS_FORBIDDEN(HttpStatus.FORBIDDEN, "G005", "접근 권한이 없습니다."),
-    ADMIN_ONLY(HttpStatus.FORBIDDEN, "G006", "관리자 권한이 필요합니다.")
-    ;
+    ADMIN_ONLY(HttpStatus.FORBIDDEN, "G006", "관리자 권한이 필요합니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

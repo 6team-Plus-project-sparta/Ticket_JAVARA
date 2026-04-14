@@ -8,9 +8,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * CHAT_ROOM 테이블 엔티티 (도전 기능)
  * ERD v7.0: chat_room_id, user_id FK, status, created_at, updated_at
@@ -36,9 +33,6 @@ public class ChatRoom extends BaseTimeEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
     private ChatRoomStatus status;
-
-    @OneToMany(mappedBy = "chatRoom", cascade = CascadeType.ALL)
-    private List<ChatMessage> messages = new ArrayList<>();
 
     @Builder
     public ChatRoom(User user) {
