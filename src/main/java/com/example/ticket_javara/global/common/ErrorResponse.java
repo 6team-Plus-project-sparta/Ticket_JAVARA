@@ -1,6 +1,7 @@
 package com.example.ticket_javara.global.common;
 
 import com.example.ticket_javara.global.exception.ErrorCode;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -15,13 +16,15 @@ public class ErrorResponse {
 
     private final String code;
     private final String message;
-    private final String timestamp;
+
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private final LocalDateTime timestamp;
     private List<FieldErrorDetail> errors;
 
     private ErrorResponse(String code, String message) {
         this.code = code;
         this.message = message;
-        this.timestamp = LocalDateTime.now().toString();
+        this.timestamp = LocalDateTime.now();
     }
 
     /** 단순 비즈니스 에러 */
