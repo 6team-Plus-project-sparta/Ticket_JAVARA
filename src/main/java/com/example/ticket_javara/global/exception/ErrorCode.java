@@ -1,23 +1,24 @@
 package com.example.ticket_javara.global.exception;
 
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 
-/**
- * 에러 코드 Enum — 12_공통_에러코드_설계서.md 참조
- * A(인증), U(사용자), E(이벤트), S(좌석/Hold), O(주문/예매), C(쿠폰), H(채팅), G(공통) 계열
- */
 @Getter
+@RequiredArgsConstructor
 public enum ErrorCode {
+
 
     // ──────────────────────────────────────────────────
     // A: 인증 (Auth)
     // ──────────────────────────────────────────────────
     AUTHENTICATION_FAILED(HttpStatus.UNAUTHORIZED, "A001", "이메일 또는 비밀번호가 올바르지 않습니다."),
     INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "A002", "유효하지 않은 토큰입니다."),
-    EXPIRED_TOKEN(HttpStatus.UNAUTHORIZED, "A003", "인증이 만료되었습니다."),
+    EXPIRED_TOKEN(HttpStatus.UNAUTHORIZED, "A003", "토큰이 만료되었습니다."),
     FORBIDDEN(HttpStatus.FORBIDDEN, "A004", "접근 권한이 없습니다."),
     INVALID_CURRENT_PASSWORD(HttpStatus.UNAUTHORIZED, "A005", "현재 비밀번호가 올바르지 않습니다."),
+    DUPLICATE_EMAIL(HttpStatus.CONFLICT, "A006", "이미 가입된 이메일입니다."),
+    UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "A007", "인증이 필요합니다."),
 
     // ──────────────────────────────────────────────────
     // U: 사용자 (User)
@@ -25,6 +26,7 @@ public enum ErrorCode {
     EMAIL_DUPLICATED(HttpStatus.CONFLICT, "U001", "이미 가입된 이메일입니다."),
     NICKNAME_DUPLICATED(HttpStatus.CONFLICT, "U002", "이미 사용 중인 닉네임입니다."),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "U003", "존재하지 않는 사용자입니다."),
+    USER_FORBIDDEN(HttpStatus.FORBIDDEN, "U004", "본인의 정보만 수정할 수 있습니다."),
 
     // ──────────────────────────────────────────────────
     // E: 이벤트 (Event)
@@ -35,6 +37,7 @@ public enum ErrorCode {
     VENUE_NOT_FOUND(HttpStatus.NOT_FOUND, "E004", "존재하지 않는 공연장입니다."),
     SECTION_NOT_FOUND(HttpStatus.NOT_FOUND, "E005", "존재하지 않는 구역입니다."),
     SEAT_NOT_FOUND(HttpStatus.NOT_FOUND, "E006", "존재하지 않는 좌석입니다."),
+    EVENT_FORBIDDEN(HttpStatus.FORBIDDEN, "E007", "이벤트 관리 권한이 없습니다."),
 
     // ──────────────────────────────────────────────────
     // S: 좌석/Hold (Seat)
@@ -57,6 +60,10 @@ public enum ErrorCode {
     BOOKING_NOT_FOUND(HttpStatus.NOT_FOUND, "O005", "존재하지 않는 예매입니다."),
     BOOKING_ALREADY_CONFIRMED(HttpStatus.CONFLICT, "O006", "이미 해당 좌석이 다른 예매로 확정되어 있습니다."),
     PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "O007", "결제 기록이 확인되지 않습니다. 확정을 중단합니다."),
+    HOLDING_EXPIRED(HttpStatus.CONFLICT, "O008", "점유 시간이 만료된 좌석이 있습니다. 좌석을 다시 선택해주세요."),
+    CANCEL_NOT_OWNED(HttpStatus.FORBIDDEN, "O009", "본인의 주문만 취소할 수 있습니다."),
+    BOOKING_NOT_PENDING(HttpStatus.BAD_REQUEST, "O010","PENDING 상태의 예매만 수동 확정할 수 있습니다."),
+
 
     // ──────────────────────────────────────────────────
     // C: 쿠폰 (Coupon)
@@ -68,6 +75,7 @@ public enum ErrorCode {
     COUPON_NOT_OWNED(HttpStatus.BAD_REQUEST, "C005", "본인 소유의 쿠폰만 사용할 수 있습니다."),
     COUPON_NOT_STARTED(HttpStatus.BAD_REQUEST, "C006", "아직 발급 시작 전인 쿠폰입니다."),
     COUPON_SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "C007", "현재 서비스 이용이 어렵습니다. 잠시 후 다시 시도해주세요."),
+    COUPON_EXPIRED(HttpStatus.BAD_REQUEST, "C008", "만료된 쿠폰입니다."),
 
     // ──────────────────────────────────────────────────
     // H: 채팅 (Chat)
@@ -81,15 +89,13 @@ public enum ErrorCode {
     // ──────────────────────────────────────────────────
     VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "G001", "입력값 유효성 검증에 실패했습니다."),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "G002", "서버 내부 오류가 발생했습니다."),
+    INVALID_REQUEST(HttpStatus.BAD_REQUEST, "G003", "입력값이 올바르지 않습니다."),
+    NOT_FOUND(HttpStatus.NOT_FOUND, "G004", "요청한 리소스를 찾을 수 없습니다."),
+    ACCESS_FORBIDDEN(HttpStatus.FORBIDDEN, "G005", "접근 권한이 없습니다."),
+    ADMIN_ONLY(HttpStatus.FORBIDDEN, "G006", "관리자 권한이 필요합니다.")
     ;
 
     private final HttpStatus httpStatus;
     private final String code;
     private final String message;
-
-    ErrorCode(HttpStatus httpStatus, String code, String message) {
-        this.httpStatus = httpStatus;
-        this.code = code;
-        this.message = message;
-    }
 }
