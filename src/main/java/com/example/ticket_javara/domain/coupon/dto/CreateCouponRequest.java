@@ -28,6 +28,8 @@ public class CreateCouponRequest {
     @NotNull
     private LocalDateTime expiredAt;
 
+    private String imageUrl;
+
     @AssertTrue(message = "시작일은 만료일보다 이전이어야 합니다.")
     public boolean isValidDateRange() {
         if (startAt == null || expiredAt == null) return true;
