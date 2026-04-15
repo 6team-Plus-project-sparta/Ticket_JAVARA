@@ -43,6 +43,7 @@ public class CouponService {
                 .totalQuantity(request.getTotalQuantity())
                 .startAt(request.getStartAt())
                 .expiredAt(request.getExpiredAt())
+                .imageUrl(request.getImageUrl())
                 .build();
 
         Coupon savedCoupon = couponRepository.save(coupon);
@@ -52,6 +53,12 @@ public class CouponService {
         stringRedisTemplate.opsForValue().set(redisKey, String.valueOf(savedCoupon.getTotalQuantity()));
 
         return CreateCouponResponse.from(savedCoupon);
+    }
+
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Slice<com.example.ticket_javara.domain.coupon.dto.GetCouponResponse> getAllCoupons(org.springframework.data.domain.Pageable pageable) {
+        return couponRepository.findAllByOrderByCouponIdDesc(pageable)
+                .map(com.example.ticket_javara.domain.coupon.dto.GetCouponResponse::from);
     }
 
     @Transactional

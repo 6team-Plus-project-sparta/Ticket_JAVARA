@@ -42,4 +42,14 @@ public class CouponController {
         IssueCouponResponse response = couponService.issueCoupon(userDetails.getUserId(), couponId);
         return ResponseEntity.ok(response);
     }
+
+    /**
+     * 전체 쿠폰 목록 조회 (무한 스크롤)
+     */
+    @GetMapping("/coupons")
+    public ResponseEntity<org.springframework.data.domain.Slice<com.example.ticket_javara.domain.coupon.dto.GetCouponResponse>> getAllCoupons(
+            @org.springframework.data.web.PageableDefault(size = 10) org.springframework.data.domain.Pageable pageable) {
+        org.springframework.data.domain.Slice<com.example.ticket_javara.domain.coupon.dto.GetCouponResponse> response = couponService.getAllCoupons(pageable);
+        return ResponseEntity.ok(response);
+    }
 }
