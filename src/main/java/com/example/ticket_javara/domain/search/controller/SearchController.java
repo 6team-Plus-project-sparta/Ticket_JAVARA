@@ -17,6 +17,9 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.ticket_javara.domain.search.dto.response.PopularKeywordResponseDto;
+import java.util.List;
+
 @RestController
 @RequestMapping("/api")
 @RequiredArgsConstructor
@@ -44,6 +47,12 @@ public class SearchController {
         }
         
         Page<EventSummaryResponseDto> result = searchService.searchEventsV2(requestDto, pageable);
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/search/popular")
+    public ResponseEntity<List<PopularKeywordResponseDto>> getPopularKeywords() {
+        List<PopularKeywordResponseDto> result = searchService.getPopularKeywords();
         return ResponseEntity.ok(result);
     }
 }

@@ -12,6 +12,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations.TypedTuple;
+import com.example.ticket_javara.domain.search.dto.response.PopularKeywordResponseDto;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -20,8 +28,18 @@ public class SearchService {
 
     private final EventSearchRepository eventSearchRepository;
     private final SeatRepository seatRepository;
+    private final StringRedisTemplate redisTemplate;
+
+    private static final String POPULAR_KEYWORD_KEY = "search-keywords";
+
+    private void incrementSearchKeyword(String keyword) {
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            redisTemplate.opsForZSet().incrementScore(POPULAR_KEYWORD_KEY, keyword.trim(), 1);
+        }
+    }
 
     public Page<EventSummaryResponseDto> searchEventsV1(SearchRequestDto requestDto, Pageable pageable) {
+        incrementSearchKeyword(requestDto.getKeyword());
         long startTime = System.currentTimeMillis();
 
         Page<Event> events = eventSearchRepository.searchEvents(requestDto, pageable);
@@ -37,6 +55,7 @@ public class SearchService {
 
     @org.springframework.cache.annotation.Cacheable(value = "event-search", keyGenerator = "eventSearchKeyGenerator")
     public Page<EventSummaryResponseDto> searchEventsV2(SearchRequestDto requestDto, Pageable pageable) {
+        incrementSearchKeyword(requestDto.getKeyword());
         jakarta.servlet.http.HttpServletResponse response =
                 ((org.springframework.web.context.request.ServletRequestAttributes) org.springframework.web.context.request.RequestContextHolder.currentRequestAttributes()).getResponse();
         if (response != null) {
@@ -53,6 +72,23 @@ public class SearchService {
         // v2검색 소요시간 체크
         log.info("[V2 Search] query execution time: {} ms", (endTime - startTime));
 
+        return result;
+    }
+
+    public List<PopularKeywordResponseDto> getPopularKeywords() {
+        Set<TypedTuple<String>> typedTuples = redisTemplate.opsForZSet().reverseRangeWithScores(POPULAR_KEYWORD_KEY, 0, 9);
+        List<PopularKeywordResponseDto> result = new ArrayList<>();
+        
+        if (typedTuples != null) {
+            int rank = 1;
+            for (TypedTuple<String> tuple : typedTuples) {
+                result.add(PopularKeywordResponseDto.builder()
+                        .rank(rank++)
+                        .keyword(tuple.getValue())
+                        .score(tuple.getScore())
+                        .build());
+            }
+        }
         return result;
     }
 
