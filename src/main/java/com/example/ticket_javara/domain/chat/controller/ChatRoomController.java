@@ -14,7 +14,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import com.example.ticket_javara.domain.chat.dto.ChatRoomCloseResponse;
-import org.springframework.web.bind.annotation.*;
+
 @RestController
 @RequestMapping("/api")
 @RequiredArgsConstructor
