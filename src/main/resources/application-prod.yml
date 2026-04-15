@@ -51,5 +51,4 @@ management:
       show-details: never
 
 cors:
-  allowed-origins:
-    - "https://www.ticketflow.io"
+  allowed-origins: "https://www.ticketflow.io"
