@@ -39,7 +39,7 @@ public class SecurityConfig {
     private final JwtAuthEntryPoint jwtAuthEntryPoint;
     private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
 
-    @Value("${cors.allowed-origins}")
+    @Value("${cors.allowed-origins:*}")
     private List<String> allowedOrigins;
 
     @Bean
@@ -103,8 +103,16 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // 1. 허용할 출처(Origin) 설정 - yml에서 가져온 화이트리스트 주입
-        configuration.setAllowedOrigins(allowedOrigins);
+        // 1. 허용할 출처(Origin) 설정 - 모든 출처 허용 (로컬 파일 테스트 대응) // todo: 혹시 몰라서 주석처리, 나중에 지우기
+//        configuration.setAllowedOrigins(allowedOrigins);
+//        configuration.setAllowedOriginPatterns(List.of("*")); // 로컬 채팅테스트용
+        // [핵심 변경] yml 설정값에 "*"이 포함되어 있으면 모두 허용, 아니면 지정된 도메인만 허용
+        if (allowedOrigins.contains("*")) {
+            configuration.setAllowedOriginPatterns(List.of("*"));
+        } else {
+            configuration.setAllowedOrigins(allowedOrigins);
+        }
+
 
         // 2. 허용할 HTTP 메서드 등록 (Preflight OPTIONS 필수 포함)
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));

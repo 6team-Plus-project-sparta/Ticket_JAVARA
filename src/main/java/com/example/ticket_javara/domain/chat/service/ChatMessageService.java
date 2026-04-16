@@ -46,7 +46,7 @@ public class ChatMessageService {
 
         chatMessageRepository.save(message);
 
-        String senderNickname = role == SenderRole.ADMIN ? "TicketFlow CS팀" : chatRoom.getUser().getNickname();
+        String senderNickname = role == SenderRole.ADMIN ? "TicketJavara CS팀" : chatRoom.getUser().getNickname();
         ChatMessageResponse response = ChatMessageResponse.of(message, senderNickname);
 
         // 해당 채팅방을 구독 중인 연결로 브로드캐스트

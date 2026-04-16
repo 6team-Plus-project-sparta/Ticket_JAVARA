@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TicketJavara Chat Test</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        .box { border: 1px solid #ccc; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
+        input, button { padding: 5px 10px; margin: 5px; }
+        #messageArea { height: 300px; overflow-y: auto; background: #f9f9f9; padding: 10px; border: 1px solid #ddd; }
+        .msg { margin-bottom: 10px; padding: 8px; background: #e3f2fd; border-radius: 8px; display: inline-block; clear: both;}
+    </style>
+</head>
+<body>
+
+    <h2>TicketJavara 채팅 테스트 클라이언트</h2>
+
+    <div class="box">
+        <h3>1. 설정 및 연결</h3>
+        <input type="text" id="token" placeholder="JWT 토큰 입력 (Bearer 제외)" style="width: 300px;">
+        <input type="text" id="roomId" placeholder="ChatRoom ID (미리 API로 생성)" style="width: 250px;">
+        <button onclick="connect()">연결하기</button>
+        <button onclick="disconnect()">종료하기</button>
+        <div id="status" style="color: red; font-weight: bold;">[상태: 끊어짐]</div>
+    </div>
+
+    <div class="box">
+        <h3>2. 메시지 보내기</h3>
+        <input type="text" id="messageInput" placeholder="보낼 메시지 입력..." style="width: 400px;" disabled>
+        <button id="sendBtn" onclick="sendMessage()" disabled>전송</button>
+    </div>
+
+    <div class="box">
+        <h3>채팅 내역</h3>
+        <div id="messageArea"></div>
+    </div>
+
+    <script>
+        let stompClient = null;
+        let currentRoomId = null;
+
+        function connect() {
+            const token = document.getElementById('token').value.trim();
+            const roomId = document.getElementById('roomId').value.trim();
+
+            if(!token || !roomId) {
+                alert("토큰과 ChatRoom ID를 모두 입력해주세요.");
+                return;
+            }
+
+            currentRoomId = roomId;
+            
+            // SockJS 연결 (엔드포인트: /ws-stomp)
+            const socket = new SockJS('http://localhost:8080/ws-stomp');
+            stompClient = Stomp.over(socket);
+            
+            // 연결 시도 (헤더에 JWT 토큰 담기)
+            // 사용자가 Bearer를 직접 입력했는지 확인하여 중복 방지
+            const finalToken = token.startsWith("Bearer ") ? token : "Bearer " + token;
+            
+            stompClient.connect({ "Authorization": finalToken }, function (frame) {
+                document.getElementById('status').innerText = "[상태: 연결됨]";
+                document.getElementById('status').style.color = "green";
+                document.getElementById('messageInput').disabled = false;
+                document.getElementById('sendBtn').disabled = false;
+                
+                showGreeting("채팅방 [" + roomId + "]에 성공적으로 연결되었습니다.");
+
+                // 구독: 해당 채팅방의 메시지를 수신
+                stompClient.subscribe('/sub/chat/room/' + roomId, function (messageOutput) {
+                    const data = JSON.parse(messageOutput.body);
+                    showGreeting(`[${data.senderNickname}] ${data.content} (${new Date(data.sentAt).toLocaleTimeString()})`);
+                });
+
+            }, function (error) {
+                console.error(error);
+                alert("연결 실패! 콘솔을 확인하거나 토큰이 유효한지 확인하세요.");
+                disconnect();
+            });
+        }
+
+        function disconnect() {
+            if (stompClient !== null) {
+                stompClient.disconnect();
+            }
+            document.getElementById('status').innerText = "[상태: 끊어짐]";
+            document.getElementById('status').style.color = "red";
+            document.getElementById('messageInput').disabled = true;
+            document.getElementById('sendBtn').disabled = true;
+        }
+
+        function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const content = messageInput.value.trim();
+            
+            if(content && stompClient) {
+                // @MessageMapping("/chat/message") 로 발송
+                const chatMessage = {
+                    chatRoomId: currentRoomId,
+                    content: content
+                };
+                stompClient.send("/pub/chat/message", {}, JSON.stringify(chatMessage));
+                messageInput.value = '';
+            }
+        }
+
+        function showGreeting(message) {
+            const messageArea = document.getElementById('messageArea');
+            const p = document.createElement('p');
+            p.className = 'msg';
+            p.appendChild(document.createTextNode(message));
+            messageArea.appendChild(p);
+            messageArea.appendChild(document.createElement('br'));
+            messageArea.scrollTop = messageArea.scrollHeight;
+        }
+    </script>
+</body>
+</html>
