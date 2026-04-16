@@ -1,5 +1,7 @@
 package com.example.ticket_javara.global.lock;
 
+import java.util.function.Supplier;
+
 /**
  * 분산락 공통 인터페이스
  * 필수: LettuceDistributedLock (SETNX)
@@ -23,4 +25,12 @@ public interface DistributedLockProvider {
      * @param value UUID (본인 확인)
      */
     void unlock(String key, String value);
+
+    /**
+     * @param key 락을 식별할 고유 키
+     * @param task 락을 획득한 후 실행할 비즈니스 로직
+     * @param <T> 반환 타입
+     * @return 로직 실행 결과
+     */
+    <T> T executeWithLock(String key, Supplier<T> task);
 }

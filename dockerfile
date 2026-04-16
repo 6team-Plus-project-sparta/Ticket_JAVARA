@@ -6,6 +6,7 @@ COPY gradlew .
 COPY gradle gradle
 COPY build.gradle .
 COPY settings.gradle .
+RUN chmod +x ./gradlew                      # ← 이 줄 추가!
 RUN ./gradlew dependencies -x test
  
 # 2. 소스 코드 복사 후 빌드 (소스 변경 시에도 의존성은 캐시 재사용)

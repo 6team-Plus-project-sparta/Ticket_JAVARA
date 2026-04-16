@@ -117,7 +117,11 @@ public class CouponService {
      *         0을 반환하거나 RuntimeException 던질 때 대응
      */
     private boolean decrementStockInRedis(String key) {
-        String scriptText = "local stock = redis.call('DECR', KEYS[1]) \n" +
+        String scriptText = "local exists = redis.call('EXISTS', KEYS[1]) \n" +
+                "if exists == 0 then \n" +
+                "   return nil \n" +
+                "end \n" +
+                "local stock = redis.call('DECR', KEYS[1]) \n" +
                 "if stock < 0 then \n" +
                 "   redis.call('INCR', KEYS[1]) \n" +
                 "   return -1 \n" +
@@ -131,15 +135,16 @@ public class CouponService {
         try {
             Long result = stringRedisTemplate.execute(redisScript, Collections.singletonList(key));
             if (result == null) {
-                return false; // key 없음, fallback
+                return false; // key 없음 -> DB Fallback으로 가서 Redis 키를 다시 살려야 함 (정상)
             }
             if (result == -1) {
-                throw new BusinessException(ErrorCode.COUPON_EXHAUSTED); // 재고 없음
+                // [수정 포인트] 재고 소진은 DB에 물어볼 필요가 없습니다. 즉시 차단합니다.
+                throw new BusinessException(ErrorCode.COUPON_EXHAUSTED);
             }
             return true;
         } catch (org.springframework.dao.DataAccessException e) {
-            log.warn("Redis 차감 실패로 Fallback 진입: {}", e.getMessage());
-            return false;
+            log.warn("Redis 차감 실패(네트워크 등)로 Fallback 진입: {}", e.getMessage());
+            return false; // Redis 장애 시 -> DB Fallback 진행 (정상)
         }
     }
 

@@ -46,4 +46,6 @@ lock:
   provider: lettuce
 
 cors:
-  allowed-origins: "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000"
+  allowed-origins: "*"
+#  allowed-origins: "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000"
+#  todo: 혹시 몰라서 주석처리, 나중에 지우기

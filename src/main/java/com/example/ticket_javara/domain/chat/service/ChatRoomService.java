@@ -15,41 +15,53 @@ import com.example.ticket_javara.global.exception.BusinessException;
 import com.example.ticket_javara.global.exception.ErrorCode;
 import com.example.ticket_javara.global.exception.ForbiddenException;
 import com.example.ticket_javara.global.exception.NotFoundException;
+import com.example.ticket_javara.global.lock.DistributedLockProvider;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ChatRoomService {
 
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final DistributedLockProvider lockProvider; // 분산락 의존성 추가
     private final UserRepository userRepository;
-    private final SimpMessagingTemplate messagingTemplate;
 
+    /**
+     * 사용자의 기존 OPEN 채팅방을 반환하거나, 없으면 새로 생성합니다. (분산락 적용)
+     */
     @Transactional
     public ChatRoomResponse createOrGetRoom(Long userId) {
-        Optional<ChatRoom> existingRoom = chatRoomRepository.findByUserUserIdAndStatus(userId, ChatRoomStatus.OPEN);
-        
-        if (existingRoom.isPresent()) {
-            return ChatRoomResponse.of(existingRoom.get(), false);
-        }
+        // 1. 1차 조회: 기존 방이 있으면 isNew = false 로 반환
+        return chatRoomRepository.findFirstByUserUserIdAndStatusOrderByCreatedAtDesc(userId, ChatRoomStatus.OPEN)
+                .map(room -> ChatRoomResponse.of(room, false))
+                .orElseGet(() -> {
+                    String lockKey = "lock:chat-room:create:" + userId;
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new NotFoundException(ErrorCode.NOT_FOUND));
+                    User user = userRepository.findById(userId).orElseThrow(() -> new NotFoundException(ErrorCode.NOT_FOUND));
 
-        ChatRoom newRoom = ChatRoom.builder().user(user).build();
-        ChatRoom savedRoom = chatRoomRepository.save(newRoom);
-
-        return ChatRoomResponse.of(savedRoom, true);
+                    return lockProvider.executeWithLock(lockKey, () -> {
+                        // 2. 2차 조회: 락 대기 중 다른 스레드가 방을 만들었으면 isNew = false 로 반환
+                        return chatRoomRepository.findFirstByUserUserIdAndStatusOrderByCreatedAtDesc(userId, ChatRoomStatus.OPEN)
+                                .map(room -> ChatRoomResponse.of(room, false))
+                                .orElseGet(() -> {
+                                    // 3. 최종 생성: 진짜 방이 없어서 새로 만들었으므로 isNew = true 로 반환
+                                    ChatRoom newRoom = ChatRoom.builder()
+                                            .user(user)
+                                            .build();
+                                    return ChatRoomResponse.of(chatRoomRepository.save(newRoom), true);
+                                });
+                    });
+                });
     }
 
     @Transactional
@@ -94,7 +106,7 @@ public class ChatRoomService {
         List<ChatMessageResponse> messageResponses = messages.stream()
                 .map(msg -> {
                     String nickname = "ADMIN".equals(msg.getSenderRole().name())
-                            ? "TicketFlow CS팀"
+                            ? "TicketJavara CS팀"
                             : chatRoom.getUser().getNickname();
                     return ChatMessageResponse.of(msg, nickname);
                 })
