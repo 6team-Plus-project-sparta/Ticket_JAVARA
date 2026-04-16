@@ -2,6 +2,7 @@ package com.example.ticket_javara.domain.booking.controller;
 
 import com.example.ticket_javara.domain.booking.dto.request.OrderCreateRequestDto;
 import com.example.ticket_javara.domain.booking.dto.response.OrderResponseDto;
+import com.example.ticket_javara.domain.booking.service.CancelService;
 import com.example.ticket_javara.domain.booking.service.OrderService;
 import com.example.ticket_javara.global.common.ApiResponse;
 import com.example.ticket_javara.global.security.CustomUserDetails;
@@ -15,8 +16,8 @@ import org.springframework.web.bind.annotation.*;
 /**
  * 주문 컨트롤러
  * API:
- *   POST /api/orders              — 주문 생성 (FN-BK-01) ⚠️
- *   GET  /api/orders/{orderId}    — 주문 상세 조회 (폴링 용)
+ *   POST /api/orders                    — 주문 생성 (FN-BK-01)
+ *   POST /api/orders/{orderId}/cancel   — 주문 취소 (FN-BK-03)
  */
 @Slf4j
 @RestController
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.*;
 public class OrderController {
 
     private final OrderService orderService;
+    private final CancelService cancelService;
 
     /**
      * POST /api/orders
@@ -47,5 +49,28 @@ public class OrderController {
         OrderResponseDto response = orderService.createOrder(request, userId);
 
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * POST /api/orders/{orderId}/cancel
+     * 주문 취소 (FN-BK-03)
+     *
+     * CONFIRMED 상태 주문만 취소 가능
+     * 이벤트 시작 24시간 전까지만 취소 가능 (KST 기준)
+     * ACTIVE_BOOKING DELETE → BOOKING/ORDER CANCELLED → 쿠폰 복원 → Mock PG 환불
+     *
+     * @return 200 OK
+     */
+    @PostMapping("/{orderId}/cancel")
+    public ResponseEntity<ApiResponse<Void>> cancelOrder(
+            @PathVariable Long orderId,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+
+        Long userId = userDetails.getUserId();
+        log.info("[OrderController] 주문 취소 요청 orderId={}, userId={}", orderId, userId);
+
+        cancelService.cancelOrder(orderId, userId);
+
+        return ResponseEntity.ok(ApiResponse.success(null, "주문이 취소되었습니다."));
     }
 }
