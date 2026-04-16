@@ -12,7 +12,7 @@ import java.util.Optional;
 
 public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
     Optional<ChatRoom> findByUserUserIdAndStatus(Long userId, ChatRoomStatus status);
-    Optional<ChatRoom> findFirstByUserAndStatusOrderByCreatedAtDesc(User user, ChatRoomStatus status);
+    Optional<ChatRoom> findFirstByUserUserIdAndStatusOrderByCreatedAtDesc(Long userId, ChatRoomStatus status);
     
     @EntityGraph(attributePaths = {"user"})
     Page<ChatRoom> findByStatus(ChatRoomStatus status, Pageable pageable);

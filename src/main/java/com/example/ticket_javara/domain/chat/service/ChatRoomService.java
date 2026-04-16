@@ -20,12 +20,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -35,26 +33,25 @@ public class ChatRoomService {
 
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageRepository chatMessageRepository;
-    private final UserRepository userRepository;
     private final DistributedLockProvider lockProvider; // 분산락 의존성 추가
+    private final UserRepository userRepository;
 
     /**
      * 사용자의 기존 OPEN 채팅방을 반환하거나, 없으면 새로 생성합니다. (분산락 적용)
      */
     @Transactional
     public ChatRoomResponse createOrGetRoom(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new NotFoundException(ErrorCode.NOT_FOUND));
-
         // 1. 1차 조회: 기존 방이 있으면 isNew = false 로 반환
-        return chatRoomRepository.findFirstByUserAndStatusOrderByCreatedAtDesc(user, ChatRoomStatus.OPEN)
+        return chatRoomRepository.findFirstByUserUserIdAndStatusOrderByCreatedAtDesc(userId, ChatRoomStatus.OPEN)
                 .map(room -> ChatRoomResponse.of(room, false))
                 .orElseGet(() -> {
-                    String lockKey = "lock:chat-room:create:" + user.getUserId();
+                    String lockKey = "lock:chat-room:create:" + userId;
+
+                    User user = userRepository.findById(userId).orElseThrow(() -> new NotFoundException(ErrorCode.NOT_FOUND));
 
                     return lockProvider.executeWithLock(lockKey, () -> {
                         // 2. 2차 조회: 락 대기 중 다른 스레드가 방을 만들었으면 isNew = false 로 반환
-                        return chatRoomRepository.findFirstByUserAndStatusOrderByCreatedAtDesc(user, ChatRoomStatus.OPEN)
+                        return chatRoomRepository.findFirstByUserUserIdAndStatusOrderByCreatedAtDesc(userId, ChatRoomStatus.OPEN)
                                 .map(room -> ChatRoomResponse.of(room, false))
                                 .orElseGet(() -> {
                                     // 3. 최종 생성: 진짜 방이 없어서 새로 만들었으므로 isNew = true 로 반환
