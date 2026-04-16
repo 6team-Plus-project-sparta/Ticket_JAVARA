@@ -42,7 +42,7 @@ public class ChatRoomService {
     @Transactional
     public ChatRoomResponse createOrGetRoom(Long userId) {
         // 1. 1차 조회: 기존 방이 있으면 isNew = false 로 반환
-        return chatRoomRepository.findFirstByUserUserIdAndStatusOrderByCreatedAtDesc(userId, ChatRoomStatus.OPEN)
+        return chatRoomRepository.findLatestOpenRoomByUserId(userId)
                 .map(room -> ChatRoomResponse.of(room, false))
                 .orElseGet(() -> {
                     String lockKey = "lock:chat-room:create:" + userId;
@@ -51,7 +51,7 @@ public class ChatRoomService {
 
                     return lockProvider.executeWithLock(lockKey, () -> {
                         // 2. 2차 조회: 락 대기 중 다른 스레드가 방을 만들었으면 isNew = false 로 반환
-                        return chatRoomRepository.findFirstByUserUserIdAndStatusOrderByCreatedAtDesc(userId, ChatRoomStatus.OPEN)
+                        return chatRoomRepository.findLatestOpenRoomByUserId(userId)
                                 .map(room -> ChatRoomResponse.of(room, false))
                                 .orElseGet(() -> {
                                     // 3. 최종 생성: 진짜 방이 없어서 새로 만들었으므로 isNew = true 로 반환
@@ -141,10 +141,22 @@ public class ChatRoomService {
                 ? chatRoomRepository.findByStatus(statusEnum, pageable)
                 : chatRoomRepository.findAll(pageable);
 
+        // N+1 문제 해결: 모든 채팅방의 마지막 메시지를 한 번에 조회
+        List<Long> roomIds = rooms.getContent().stream()
+                .map(ChatRoom::getChatRoomId)
+                .collect(Collectors.toList());
+        
+        List<ChatMessage> latestMessages = chatMessageRepository.getLatestMessagesByRoomIds(roomIds);
+        
+        // 채팅방 ID별 마지막 메시지 매핑
+        var messageMap = latestMessages.stream()
+                .collect(Collectors.toMap(
+                        msg -> msg.getChatRoom().getChatRoomId(),
+                        ChatMessage::getContent
+                ));
+
         return rooms.map(room -> {
-            // 마지막 메시지 조회 최적화 - 실제 규모가 커지면 역정규화 필드 (last_message) 추가 고려
-            List<ChatMessage> msgs = chatMessageRepository.getMessagesWithCursor(room.getChatRoomId(), null, 1);
-            String lastMsg = msgs.isEmpty() ? "" : msgs.get(0).getContent();
+            String lastMsg = messageMap.getOrDefault(room.getChatRoomId(), "");
             return AdminChatRoomResponse.of(room, lastMsg);
         });
     }
