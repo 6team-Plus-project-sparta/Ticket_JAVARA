@@ -6,3 +6,10 @@ spring:
   cache:
     caffeine:
       spec: maximumSize=1000,expireAfterWrite=5m
+    redis:
+      time-to-live: 300000
+  lifecycle:
+    timeout-per-shutdown-phase: 10s
+
+server:
+  shutdown: graceful

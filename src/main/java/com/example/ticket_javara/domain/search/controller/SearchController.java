@@ -10,8 +10,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -39,12 +37,18 @@ public class SearchController {
     @GetMapping("/v2/events/search")
     public ResponseEntity<Page<EventSummaryResponseDto>> searchEventsV2(
             @ModelAttribute SearchRequestDto requestDto,
-            @PageableDefault(sort = "eventDate", direction = Sort.Direction.ASC) Pageable pageable) {
+            @PageableDefault(sort = "eventDate", direction = Sort.Direction.ASC) Pageable pageable,
+            HttpServletResponse response) {
         
-        HttpServletResponse response = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getResponse();
-        if (response != null) {
-            response.setHeader("X-Cache", "HIT");
+        // @Cacheable HIT 시 메서드 본문이 실행 안 되므로
+        // 인기 검색어 집계는 캐시 호출 바깥(컨트롤러)에서 처리
+        if (requestDto.getKeyword() != null && !requestDto.getKeyword().isBlank()) {
+            searchService.incrementSearchKeyword(requestDto.getKeyword());
         }
+        
+        // 캐시 조회 전에 HIT 여부 판단 후 헤더 세팅
+        boolean isCacheHit = searchService.isCacheHit(requestDto, pageable);
+        response.setHeader("X-Cache", isCacheHit ? "HIT" : "MISS");
         
         Page<EventSummaryResponseDto> result = searchService.searchEventsV2(requestDto, pageable);
         return ResponseEntity.ok(result);

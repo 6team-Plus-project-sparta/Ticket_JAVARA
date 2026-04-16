@@ -27,9 +27,9 @@ spring:
   jackson:
     time-zone: Asia/Seoul
 
-  cache:
-    # caffeine | redis  (ADR-006: @ConditionalOnProperty로 캐시 구현체 전환)
-    provider: caffeine
+cache:
+  # caffeine | redis  (ADR-006: @ConditionalOnProperty로 캐시 구현체 전환)
+  provider: redis
 
 logging:
   level:
