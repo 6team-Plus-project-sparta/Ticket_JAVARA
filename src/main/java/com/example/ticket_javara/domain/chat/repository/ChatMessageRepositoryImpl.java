@@ -19,12 +19,38 @@ public class ChatMessageRepositoryImpl implements ChatMessageRepositoryCustom {
 
         return queryFactory
                 .selectFrom(chatMessage)
+                .join(chatMessage.chatRoom).fetchJoin()
+                .join(chatMessage.chatRoom.user).fetchJoin()
                 .where(
                         chatMessage.chatRoom.chatRoomId.eq(chatRoomId),
                         cursorCondition(cursor, chatMessage)
                 )
                 .orderBy(chatMessage.chatMessageId.desc())
                 .limit(size)
+                .fetch();
+    }
+
+    @Override
+    public List<ChatMessage> getLatestMessagesByRoomIds(List<Long> chatRoomIds) {
+        if (chatRoomIds.isEmpty()) {
+            return List.of();
+        }
+
+        QChatMessage chatMessage = QChatMessage.chatMessage;
+        QChatMessage subMessage = new QChatMessage("subMessage");
+
+        return queryFactory
+                .selectFrom(chatMessage)
+                .where(
+                        chatMessage.chatRoom.chatRoomId.in(chatRoomIds),
+                        chatMessage.chatMessageId.in(
+                                queryFactory
+                                        .select(subMessage.chatMessageId.max())
+                                        .from(subMessage)
+                                        .where(subMessage.chatRoom.chatRoomId.in(chatRoomIds))
+                                        .groupBy(subMessage.chatRoom.chatRoomId)
+                        )
+                )
                 .fetch();
     }
 

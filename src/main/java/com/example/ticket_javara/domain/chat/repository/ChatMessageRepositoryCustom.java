@@ -5,4 +5,5 @@ import java.util.List;
 
 public interface ChatMessageRepositoryCustom {
     List<ChatMessage> getMessagesWithCursor(Long chatRoomId, Long cursor, int size);
+    List<ChatMessage> getLatestMessagesByRoomIds(List<Long> chatRoomIds);
 }
