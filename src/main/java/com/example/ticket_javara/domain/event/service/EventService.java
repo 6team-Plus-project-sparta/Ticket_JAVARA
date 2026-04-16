@@ -24,7 +24,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import com.example.ticket_javara.global.event.EventCreatedEvent;
+import org.springframework.context.ApplicationEventPublisher;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -35,14 +39,15 @@ public class EventService {
     private final SectionRepository sectionRepository;
     private final SeatRepository seatRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public EventCreateResponseDto createEvent(EventCreateRequestDto requestDto, Long adminId) {
-        if (!requestDto.getSaleStartAt().isBefore(requestDto.getSaleEndAt()) || 
-            !requestDto.getSaleEndAt().isBefore(requestDto.getEventDate())) {
+        if (!requestDto.getSaleStartAt().isBefore(requestDto.getSaleEndAt()) ||
+                !requestDto.getSaleEndAt().isBefore(requestDto.getEventDate())) {
             throw new InvalidRequestException(ErrorCode.INVALID_SALE_DATE);
         }
-        
+
         if (requestDto.getEventDate().isBefore(LocalDateTime.now())) {
             throw new InvalidRequestException(ErrorCode.INVALID_REQUEST, "이벤트 일시는 현재 이후여야 합니다.");
         }
@@ -74,16 +79,16 @@ public class EventService {
 
         for (SectionCreateDto sDto : requestDto.getSections()) {
             int currentSectionTotalSeats = sDto.getRowCount() * sDto.getColCount();
-            
+
             Section section = Section.builder()
                     .event(event)
                     .sectionName(sDto.getSectionName())
                     .price(sDto.getPrice())
                     .totalSeats(currentSectionTotalSeats)
                     .build();
-            
+
             section = sectionRepository.save(section);
-            
+
             List<Seat> seatsToSave = new ArrayList<>();
             for (int i = 0; i < sDto.getRowCount(); i++) {
                 String rowName = String.valueOf((char) ('A' + i));
@@ -97,10 +102,13 @@ public class EventService {
                 }
             }
             seatRepository.saveAll(seatsToSave);
-            
+
             totalSeats += currentSectionTotalSeats;
             sectionsCreated++;
         }
+
+        eventPublisher.publishEvent(new EventCreatedEvent());
+        log.info("[EventService] EventCreatedEvent 발행 — 검색 캐시 무효화 트리거");
 
         return EventCreateResponseDto.builder()
                 .eventId(event.getEventId())
@@ -115,10 +123,10 @@ public class EventService {
                 .orElseThrow(() -> new NotFoundException(ErrorCode.EVENT_NOT_FOUND));
 
         List<EventDetailResponseDto.SectionDetailDto> sectionDtos = new ArrayList<>();
-        
+
         for (Section section : event.getSections()) {
             long remainingSeats = seatRepository.countAvailableSeatsBySectionId(section.getSectionId());
-            
+
             sectionDtos.add(EventDetailResponseDto.SectionDetailDto.builder()
                     .sectionId(section.getSectionId())
                     .sectionName(section.getSectionName())
@@ -166,8 +174,7 @@ public class EventService {
 
             // 잔여좌석 계산
             long remainingSeats = event.getSections().stream()
-                    .mapToLong(section ->
-                            seatRepository.countAvailableSeatsBySectionId(section.getSectionId()))
+                    .mapToLong(section -> seatRepository.countAvailableSeatsBySectionId(section.getSectionId()))
                     .sum();
 
             return EventSummaryResponseDto.builder()
