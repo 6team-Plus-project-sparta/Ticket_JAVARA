@@ -1,0 +1,47 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=MySQL;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+  
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.H2Dialect
+  
+  redis:
+    host: localhost
+    port: 6379
+    timeout: 2000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+
+# 테스트용 설정
+cache:
+  provider: caffeine  # 테스트에서는 Caffeine 사용
+
+lock:
+  provider: lettuce    # 분산락 테스트
+
+logging:
+  level:
+    com.example.ticket_javara: DEBUG
+    org.springframework.data.redis: DEBUG
+    
+# JWT 테스트 설정
+jwt:
+  secret: test-secret-key-for-jwt-token-generation-in-test-environment
+  expiration: 3600000  # 1시간
+
+# 테스트 전용 Redis 키 TTL (짧게 설정)
+test:
+  redis:
+    default-ttl: 300  # 5분
