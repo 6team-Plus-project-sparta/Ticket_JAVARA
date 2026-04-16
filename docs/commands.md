@@ -24,7 +24,7 @@ redis-cli -p 6379
 # 인기검색어 카운트 확인
 ZREVRANGE search-keywords 0 9 WITHSCORES
 
-# Redis 초기화
+# Redis 초기화(사용주의)
 FLUSHALL
 
 # Redis 접속 및 UTF-8 -> 한글 전환
