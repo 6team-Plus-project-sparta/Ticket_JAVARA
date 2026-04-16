@@ -27,9 +27,9 @@ spring:
   jackson:
     time-zone: Asia/Seoul
 
-  cache:
-    # caffeine | redis  (ADR-006: @ConditionalOnProperty로 캐시 구현체 전환)
-    provider: caffeine
+cache:
+  # caffeine | redis  (ADR-006: @ConditionalOnProperty로 캐시 구현체 전환)
+  provider: redis
 
 logging:
   level:
@@ -44,3 +44,8 @@ jwt:
 lock:
   # lettuce | redisson  (ADR-002: @ConditionalOnProperty로 락 구현체 전환)
   provider: lettuce
+
+cors:
+  allowed-origins: "*"
+#  allowed-origins: "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000"
+#  todo: 혹시 몰라서 주석처리, 나중에 지우기

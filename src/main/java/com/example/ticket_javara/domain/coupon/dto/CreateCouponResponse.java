@@ -21,6 +21,8 @@ public class CreateCouponResponse {
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime expiredAt;
 
+    private String imageUrl;
+
     public static CreateCouponResponse from(Coupon coupon) {
         return CreateCouponResponse.builder()
                 .couponId(coupon.getCouponId())
@@ -29,6 +31,7 @@ public class CreateCouponResponse {
                 .remainingQuantity(coupon.getRemainingQuantity())
                 .startAt(coupon.getStartAt())
                 .expiredAt(coupon.getExpiredAt())
+                .imageUrl(coupon.getImageUrl())
                 .build();
     }
 }

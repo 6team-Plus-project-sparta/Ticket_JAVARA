@@ -6,6 +6,7 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Lettuce SETNX 기반 분산락 구현체 (필수)
@@ -53,5 +54,10 @@ public class LettuceDistributedLock implements DistributedLockProvider {
         } else {
             log.debug("[LettuceDistributedLock] 락 해제 성공 key={}", key);
         }
+    }
+
+    @Override
+    public <T> T executeWithLock(String key, Supplier<T> task) {
+        return null;
     }
 }

@@ -2,11 +2,14 @@ package com.example.ticket_javara.domain.coupon.controller;
 
 import com.example.ticket_javara.domain.coupon.dto.CreateCouponRequest;
 import com.example.ticket_javara.domain.coupon.dto.CreateCouponResponse;
+import com.example.ticket_javara.domain.coupon.dto.GetCouponResponse;
 import com.example.ticket_javara.domain.coupon.dto.IssueCouponResponse;
 import com.example.ticket_javara.domain.coupon.service.CouponService;
 import com.example.ticket_javara.global.security.CustomUserDetails;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -33,6 +36,17 @@ public class CouponController {
     }
 
     /**
+     * 쿠폰 발급 통계 조회 (관리자용)
+     */
+    @GetMapping("/admin/coupons/{couponId}/metrics")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<java.util.Map<String, Object>> getCouponMetrics(
+            @PathVariable Long couponId) {
+        java.util.Map<String, Object> metrics = couponService.getCouponMetrics(couponId);
+        return ResponseEntity.ok(metrics);
+    }
+
+    /**
      * 선착순 쿠폰 발급 (유저 단)
      */
     @PostMapping("/coupons/{couponId}/issue")
@@ -40,6 +54,16 @@ public class CouponController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable Long couponId) {
         IssueCouponResponse response = couponService.issueCoupon(userDetails.getUserId(), couponId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 전체 쿠폰 목록 조회 (무한 스크롤)
+     */
+    @GetMapping("/coupons")
+    public ResponseEntity<Slice<GetCouponResponse>> getAllCoupons(
+            @org.springframework.data.web.PageableDefault(size = 10) Pageable pageable) {
+        Slice<GetCouponResponse> response = couponService.getAllCoupons(pageable);
         return ResponseEntity.ok(response);
     }
 }

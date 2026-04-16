@@ -1,6 +1,8 @@
 package com.example.ticket_javara.domain.coupon.repository;
 
 import com.example.ticket_javara.domain.coupon.entity.Coupon;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import org.springframework.data.jpa.repository.Lock;
@@ -18,4 +20,6 @@ public interface CouponRepository extends JpaRepository<Coupon, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT c FROM Coupon c WHERE c.couponId = :couponId")
     Optional<Coupon> findByIdWithLock(@Param("couponId") Long couponId);
+
+    Slice<Coupon> findAllByOrderByCouponIdDesc(Pageable pageable);
 }
