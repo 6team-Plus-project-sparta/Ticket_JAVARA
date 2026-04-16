@@ -119,7 +119,7 @@ public class EventService {
     }
 
     public EventDetailResponseDto getEventDetail(Long eventId) {
-        Event event = eventRepository.findById(eventId)
+        Event event = eventRepository.findByIdWithVenueAndSections(eventId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.EVENT_NOT_FOUND));
 
         List<EventDetailResponseDto.SectionDetailDto> sectionDtos = new ArrayList<>();

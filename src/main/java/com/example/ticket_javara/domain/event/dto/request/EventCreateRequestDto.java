@@ -5,6 +5,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -13,6 +15,8 @@ import java.util.List;
 
 @Getter
 @NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class EventCreateRequestDto {
 
     @NotBlank(message = "이벤트 제목은 필수입니다.")

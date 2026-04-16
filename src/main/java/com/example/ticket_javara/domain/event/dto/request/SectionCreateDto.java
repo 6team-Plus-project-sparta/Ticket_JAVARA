@@ -3,11 +3,15 @@ package com.example.ticket_javara.domain.event.dto.request;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Getter
 @NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class SectionCreateDto {
 
     @NotBlank(message = "구역 이름은 필수입니다.")
