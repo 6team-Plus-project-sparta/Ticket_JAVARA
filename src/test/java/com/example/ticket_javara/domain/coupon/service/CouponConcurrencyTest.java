@@ -130,9 +130,7 @@ class CouponConcurrencyTest {
         // awaitility를 사용하여 DB에 정확히 10개의 쿠폰이 발급될 때까지 대기
         await().atMost(Duration.ofSeconds(10))
                 .untilAsserted(() -> {
-                    List<UserCoupon> issuedCoupons = userCouponRepository.findAll().stream()
-                            .filter(uc -> uc.getCoupon().getCouponId().equals(testCoupon.getCouponId()))
-                            .toList();
+                    List<UserCoupon> issuedCoupons = userCouponRepository.findByCouponCouponId(testCoupon.getCouponId());
                     assertThat(issuedCoupons).hasSize(couponQuantity);
                 });
 
@@ -140,10 +138,8 @@ class CouponConcurrencyTest {
         assertThat(successCount.get()).isEqualTo(couponQuantity);
         assertThat(failCount.get()).isEqualTo(threadCount - couponQuantity);
         
-        // DB 검증 - @Query를 사용하여 직접 조회
-        List<UserCoupon> issuedCoupons = userCouponRepository.findAll().stream()
-                .filter(uc -> uc.getCoupon().getCouponId().equals(testCoupon.getCouponId()))
-                .toList();
+        // DB 검증 - 필요한 데이터만 DB에서 직접 필터링하여 조회 (성능 및 가독성 향상)
+        List<UserCoupon> issuedCoupons = userCouponRepository.findByCouponCouponId(testCoupon.getCouponId());
         assertThat(issuedCoupons).hasSize(couponQuantity);
         assertThat(issuedCoupons).allMatch(uc -> uc.getStatus() == UserCouponStatus.ISSUED);
         
