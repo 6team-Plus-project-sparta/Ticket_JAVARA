@@ -30,9 +30,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
-import java.lang.reflect.Field;
+import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.awaitility.Awaitility.await;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -62,13 +63,14 @@ class CouponConcurrencyTest {
         // Redis 키 정리
         stringRedisTemplate.getConnectionFactory().getConnection().flushAll();
         
-        // 테스트 쿠폰 생성
-        CreateCouponRequest request = new CreateCouponRequest();
-        setField(request, "name", "동시성 테스트 쿠폰");
-        setField(request, "discountAmount", 5000);
-        setField(request, "totalQuantity", 10);
-        setField(request, "startAt", LocalDateTime.now().minusHours(1));
-        setField(request, "expiredAt", LocalDateTime.now().plusDays(30));
+        // 테스트 쿠폰 생성 - Builder 패턴 사용
+        CreateCouponRequest request = CreateCouponRequest.builder()
+                .name("동시성 테스트 쿠폰")
+                .discountAmount(5000)
+                .totalQuantity(10)
+                .startAt(LocalDateTime.now().minusHours(1))
+                .expiredAt(LocalDateTime.now().plusDays(30))
+                .build();
         
         CreateCouponResponse response = couponService.createCoupon(request);
         testCoupon = couponRepository.findById(response.getCouponId()).orElseThrow();
@@ -127,17 +129,19 @@ class CouponConcurrencyTest {
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
         executorService.shutdown();
 
-        // 잠시 대기하여 모든 트랜잭션이 완료되도록 함
-        Thread.sleep(500);
+        // awaitility를 사용하여 DB에 정확히 10개의 쿠폰이 발급될 때까지 대기
+        await().atMost(Duration.ofSeconds(10))
+                .untilAsserted(() -> {
+                    List<UserCoupon> issuedCoupons = userCouponRepository.findByCouponCouponId(testCoupon.getCouponId());
+                    assertThat(issuedCoupons).hasSize(couponQuantity);
+                });
 
         // Then
         assertThat(successCount.get()).isEqualTo(couponQuantity);
         assertThat(failCount.get()).isEqualTo(threadCount - couponQuantity);
         
-        // DB 검증 - 실제 발급된 쿠폰 수 확인
-        List<UserCoupon> issuedCoupons = userCouponRepository.findAll().stream()
-                .filter(uc -> uc.getCoupon().getCouponId().equals(testCoupon.getCouponId()))
-                .toList();
+        // DB 검증 - Repository 메서드 사용으로 전체 스캔 방지
+        List<UserCoupon> issuedCoupons = userCouponRepository.findByCouponCouponId(testCoupon.getCouponId());
         assertThat(issuedCoupons).hasSize(couponQuantity);
         assertThat(issuedCoupons).allMatch(uc -> uc.getStatus() == UserCouponStatus.ISSUED);
         
@@ -244,12 +248,13 @@ class CouponConcurrencyTest {
     @DisplayName("쿠폰 발급 시간 제한 검증")
     void couponIssue_TimeRestriction() {
         // Given - 아직 시작되지 않은 쿠폰
-        CreateCouponRequest futureRequest = new CreateCouponRequest();
-        setField(futureRequest, "name", "미래 쿠폰");
-        setField(futureRequest, "discountAmount", 3000);
-        setField(futureRequest, "totalQuantity", 100);
-        setField(futureRequest, "startAt", LocalDateTime.now().plusDays(1)); // 내일 시작
-        setField(futureRequest, "expiredAt", LocalDateTime.now().plusDays(30));
+        CreateCouponRequest futureRequest = CreateCouponRequest.builder()
+                .name("미래 쿠폰")
+                .discountAmount(3000)
+                .totalQuantity(100)
+                .startAt(LocalDateTime.now().plusDays(1)) // 내일 시작
+                .expiredAt(LocalDateTime.now().plusDays(30))
+                .build();
         
         CreateCouponResponse futureResponse = couponService.createCoupon(futureRequest);
         User testUser = testUsers.get(0);
@@ -261,12 +266,13 @@ class CouponConcurrencyTest {
          .hasFieldOrPropertyWithValue("errorCode", ErrorCode.COUPON_NOT_STARTED);
 
         // Given - 이미 만료된 쿠폰
-        CreateCouponRequest expiredRequest = new CreateCouponRequest();
-        setField(expiredRequest, "name", "만료된 쿠폰");
-        setField(expiredRequest, "discountAmount", 3000);
-        setField(expiredRequest, "totalQuantity", 100);
-        setField(expiredRequest, "startAt", LocalDateTime.now().minusDays(10));
-        setField(expiredRequest, "expiredAt", LocalDateTime.now().minusDays(1)); // 어제 만료
+        CreateCouponRequest expiredRequest = CreateCouponRequest.builder()
+                .name("만료된 쿠폰")
+                .discountAmount(3000)
+                .totalQuantity(100)
+                .startAt(LocalDateTime.now().minusDays(10))
+                .expiredAt(LocalDateTime.now().minusDays(1)) // 어제 만료
+                .build();
         
         CreateCouponResponse expiredResponse = couponService.createCoupon(expiredRequest);
 
@@ -294,18 +300,5 @@ class CouponConcurrencyTest {
         // 대략적인 TTL 검증 (30일 + 7일 여유분 = 37일 정도)
         long expectedTtl = 37 * 24 * 3600; // 37일을 초로 변환
         assertThat(stockTtl).isBetween(expectedTtl - 3600, expectedTtl); // 1시간 오차 허용
-    }
-    
-    /**
-     * Reflection을 사용하여 private 필드에 값 설정
-     */
-    private void setField(Object target, String fieldName, Object value) {
-        try {
-            Field field = target.getClass().getDeclaredField(fieldName);
-            field.setAccessible(true);
-            field.set(target, value);
-        } catch (Exception e) {
-            throw new RuntimeException("필드 설정 실패: " + fieldName, e);
-        }
     }
 }

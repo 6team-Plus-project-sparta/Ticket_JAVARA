@@ -134,15 +134,7 @@ public class CouponService {
      *         0을 반환하거나 RuntimeException 던질 때 대응
      */
     private boolean decrementStockInRedis(String key, Long couponId) {
-        String scriptText = "local exists = redis.call('EXISTS', KEYS[1]) \n" +
-                "if exists == 0 then \n" +
-                "   return nil \n" +
-                "end \n" +
-                "local current = redis.call('GET', KEYS[1]) \n" +
-                "if tonumber(current) <= 0 then \n" +
-                "   return -1 \n" +
-                "end \n" +
-                "local stock = redis.call('DECR', KEYS[1]) \n" +
+        String scriptText = "local stock = redis.call('DECR', KEYS[1]) \n" +
                 "if stock < 0 then \n" +
                 "   redis.call('INCR', KEYS[1]) \n" +
                 "   return -1 \n" +
