@@ -90,7 +90,8 @@ class CouponConcurrencyTest {
         // Redis 정리
         stringRedisTemplate.getConnectionFactory().getConnection().flushAll();
         
-        // DB 정리 (외래키 제약으로 인해 순서 중요)
+        // DB 정리 - 동시성 테스트 특성상 @Transactional 사용 불가하여 직접 정리
+        // 외래키 제약으로 인해 순서 중요
         userCouponRepository.deleteAll();
         couponRepository.deleteAll();
         userRepository.deleteAll();

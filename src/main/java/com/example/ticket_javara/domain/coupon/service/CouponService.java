@@ -111,6 +111,14 @@ public class CouponService {
             int updatedRows = couponRepository.decrementRemainingQuantity(couponId);
             if (updatedRows == 0) {
                 // 이미 매진된 상태 - Redis와 DB 동기화 오류
+                // Redis 롤백 처리 (보상 로직)
+                try {
+                    stringRedisTemplate.opsForValue().increment(redisKey);
+                    log.warn("Redis-DB 동기화 실패로 Redis 재고 롤백 - 쿠폰 ID: {}", couponId);
+                } catch (Exception rollbackException) {
+                    log.error("Redis 롤백 실패 - 쿠폰 ID: {}, 에러: {}", couponId, rollbackException.getMessage());
+                    // Redis 롤백 실패 시에도 원래 예외를 던져야 함
+                }
                 throw new BusinessException(ErrorCode.COUPON_EXHAUSTED);
             }
             // 성공 메트릭 기록
