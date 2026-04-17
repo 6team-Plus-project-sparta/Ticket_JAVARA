@@ -108,7 +108,11 @@ public class CouponService {
         } else {
             // Redis DECR 성공 -> MySQL remaining_quantity 동기화 처리
             // 문서 명세 FN-CPN-02: 매 발급마다 즉시 동기화하여 Redis 유실 시 복구 기준 유지
-            couponRepository.decrementRemainingQuantity(couponId);
+            int updatedRows = couponRepository.decrementRemainingQuantity(couponId);
+            if (updatedRows == 0) {
+                // 이미 매진된 상태 - Redis와 DB 동기화 오류
+                throw new BusinessException(ErrorCode.COUPON_EXHAUSTED);
+            }
             // 성공 메트릭 기록
             recordSuccessfulIssue(couponId);
         }

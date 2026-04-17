@@ -24,8 +24,7 @@ public interface CouponRepository extends JpaRepository<Coupon, Long> {
     Optional<Coupon> findByIdWithLock(@Param("couponId") Long couponId);
 
     @Modifying
-    @Transactional
-    @Query("UPDATE Coupon c SET c.remainingQuantity = c.remainingQuantity - 1 WHERE c.couponId = :couponId")
+    @Query("UPDATE Coupon c SET c.remainingQuantity = c.remainingQuantity - 1 WHERE c.couponId = :couponId AND c.remainingQuantity > 0")
     int decrementRemainingQuantity(@Param("couponId") Long couponId);
 
     Slice<Coupon> findAllByOrderByCouponIdDesc(Pageable pageable);

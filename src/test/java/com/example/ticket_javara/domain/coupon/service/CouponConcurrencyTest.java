@@ -19,7 +19,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -131,7 +130,9 @@ class CouponConcurrencyTest {
         // awaitility를 사용하여 DB에 정확히 10개의 쿠폰이 발급될 때까지 대기
         await().atMost(Duration.ofSeconds(10))
                 .untilAsserted(() -> {
-                    List<UserCoupon> issuedCoupons = userCouponRepository.findByCouponCouponId(testCoupon.getCouponId());
+                    List<UserCoupon> issuedCoupons = userCouponRepository.findAll().stream()
+                            .filter(uc -> uc.getCoupon().getCouponId().equals(testCoupon.getCouponId()))
+                            .toList();
                     assertThat(issuedCoupons).hasSize(couponQuantity);
                 });
 
@@ -139,8 +140,10 @@ class CouponConcurrencyTest {
         assertThat(successCount.get()).isEqualTo(couponQuantity);
         assertThat(failCount.get()).isEqualTo(threadCount - couponQuantity);
         
-        // DB 검증 - Repository 메서드 사용으로 전체 스캔 방지
-        List<UserCoupon> issuedCoupons = userCouponRepository.findByCouponCouponId(testCoupon.getCouponId());
+        // DB 검증 - @Query를 사용하여 직접 조회
+        List<UserCoupon> issuedCoupons = userCouponRepository.findAll().stream()
+                .filter(uc -> uc.getCoupon().getCouponId().equals(testCoupon.getCouponId()))
+                .toList();
         assertThat(issuedCoupons).hasSize(couponQuantity);
         assertThat(issuedCoupons).allMatch(uc -> uc.getStatus() == UserCouponStatus.ISSUED);
         
