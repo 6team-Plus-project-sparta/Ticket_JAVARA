@@ -14,9 +14,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import com.example.ticket_javara.domain.event.dto.response.EventDetailResponseDto;
 import com.example.ticket_javara.domain.event.entity.*;
 import com.example.ticket_javara.domain.search.dto.response.EventSummaryResponseDto;
 import com.example.ticket_javara.domain.user.entity.User;
@@ -343,4 +345,107 @@ public class EventServiceTest {
         // then
         assertThat(result.getContent()).hasSize(3);
     }
+
+    // EVT-S-07
+    @Test
+    @DisplayName("이벤트 목록 조회 — 페이징 정상 동작")
+    void getEventList_Paging() {
+        // given
+        Pageable pageable = PageRequest.of(0, 3);
+
+        Venue venue = Venue.builder()
+                .name("서울월드컵경기장")
+                .address("서울시 마포구")
+                .build();
+
+        List<Event> events = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            Event event = mock(Event.class);
+            given(event.getCategory()).willReturn(EventCategory.CONCERT);
+            given(event.getVenue()).willReturn(venue);
+            given(event.getSections()).willReturn(List.of());
+            given(event.getTitle()).willReturn("이벤트 " + i);
+            given(event.getEventDate()).willReturn(LocalDateTime.now().plusDays(i + 1));
+            given(event.getThumbnailUrl()).willReturn("https://example.com/" + i);
+            events.add(event);
+        }
+
+        Page<Event> eventPage = new PageImpl<>(events, pageable, 10); // 전체 10개 중 3개
+        given(eventRepository.findAll(any(Pageable.class))).willReturn(eventPage);
+
+        // when
+        Page<EventSummaryResponseDto> result = eventService.getEventList(null, null, pageable);
+
+        // then
+        assertThat(result.getContent()).hasSize(3);           // 현재 페이지 size
+        assertThat(result.getTotalElements()).isEqualTo(10);  // 전체 데이터 수
+        assertThat(result.getTotalPages()).isEqualTo(4);      // 총 페이지 수 (10/3 올림)
+        assertThat(result.getNumber()).isEqualTo(0);          // 현재 페이지 번호
+    }
+
+    // EVT-S-08
+    @Test
+    @DisplayName("이벤트 상세 조회 성공 — Section별 잔여 좌석 수 포함")
+    void getEventDetail_Success_WithRemainingSeats() {
+        // given
+        Long eventId = 1L;
+
+        Venue venue = Venue.builder()
+                .name("서울월드컵경기장")
+                .address("서울시 마포구")
+                .build();
+
+        Event event = mock(Event.class);
+        Section section1 = mock(Section.class);
+        Section section2 = mock(Section.class);
+
+        given(section1.getSectionId()).willReturn(1L);
+        given(section1.getSectionName()).willReturn("A구역");
+        given(section1.getPrice()).willReturn(110000);
+        given(section1.getTotalSeats()).willReturn(200);
+
+        given(section2.getSectionId()).willReturn(2L);
+        given(section2.getSectionName()).willReturn("B구역");
+        given(section2.getPrice()).willReturn(88000);
+        given(section2.getTotalSeats()).willReturn(150);
+
+        given(event.getEventId()).willReturn(eventId);
+        given(event.getTitle()).willReturn("BTS 월드투어 2026");
+        given(event.getCategory()).willReturn(EventCategory.CONCERT);
+        given(event.getVenue()).willReturn(venue);
+        given(event.getEventDate()).willReturn(LocalDateTime.now().plusDays(30));
+        given(event.getDescription()).willReturn("BTS 공연");
+        given(event.getThumbnailUrl()).willReturn("https://example.com/thumbnail.jpg");
+        given(event.getSections()).willReturn(List.of(section1, section2));
+
+        given(eventRepository.findByIdWithVenueAndSections(eventId))
+                .willReturn(Optional.of(event));
+        given(seatRepository.countAvailableSeatsBySectionId(1L)).willReturn(87L);
+        given(seatRepository.countAvailableSeatsBySectionId(2L)).willReturn(120L);
+
+        // when
+        EventDetailResponseDto result = eventService.getEventDetail(eventId);
+
+        // then
+        assertThat(result.getEventId()).isEqualTo(eventId);
+        assertThat(result.getSections()).hasSize(2);
+        assertThat(result.getSections().get(0).getRemainingSeats()).isEqualTo(87L);
+        assertThat(result.getSections().get(1).getRemainingSeats()).isEqualTo(120L);
+        assertThat(result.getVenue().getName()).isEqualTo("서울월드컵경기장");
+    }
+
+    // EVT-S-09
+    @Test
+    @DisplayName("이벤트 상세 조회 실패 — 존재하지 않는 eventId")
+    void getEventDetail_Fail_NotFound() {
+        // given
+        Long eventId = 999L;
+        given(eventRepository.findByIdWithVenueAndSections(eventId))
+                .willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> eventService.getEventDetail(eventId))
+                .isInstanceOf(NotFoundException.class);
+    }
+
 }
