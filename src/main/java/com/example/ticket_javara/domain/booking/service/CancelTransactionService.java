@@ -23,7 +23,7 @@ import java.util.List;
  *
  * 처리 내용 (단일 트랜잭션, SELECT FOR UPDATE 비관적 락):
  *   1. ORDER 비관적 락 조회
- *   2. 소유자 검증 — order.validateOwnerForCancel(userId) 도메인 메서드 사용
+ *   2. 소유자 검증 — order.validateOwner(userId, ErrorCode) 도메인 메서드 사용
  *   3. CONFIRMED 상태 확인
  *   4. BOOKING 비관적 락 조회
  *   5. isEmpty() 확인 (get(0) 호출 전 반드시 수행)
@@ -63,8 +63,8 @@ public class CancelTransactionService {
         Order order = orderRepository.findByIdWithLock(orderId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.ORDER_NOT_FOUND));
 
-        // ── 2. ⭐ 소유자 검증 (도메인 메서드 — 재사용 가능, 중복 코드 방지) ──
-        order.validateOwnerForCancel(userId);
+        // ── 2. ⭐ 소유자 검증 (통합 도메인 메서드 — 에러코드 파라미터로 전달) ──
+        order.validateOwner(userId, ErrorCode.CANCEL_NOT_OWNED);
 
         // ── 3. 취소 가능한 상태 확인 ──
         if (OrderStatus.CANCELLED.equals(order.getStatus())) {

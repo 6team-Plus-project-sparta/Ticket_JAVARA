@@ -74,26 +74,19 @@ public class Order extends BaseTimeEntity {
 
     /**
      * 주문 소유자 검증 (도메인 메서드)
-     * 조회, 취소 등 여러 곳에서 재사용하여 중복 코드 방지
+     * 조회, 취소 등 여러 곳에서 재사용 — 에러코드를 파라미터로 받아 중복 코드 제거
      *
-     * @param userId JWT에서 추출한 현재 사용자 ID
+     * 사용 예:
+     *   order.validateOwner(userId, ErrorCode.ORDER_NOT_OWNED);   // 조회
+     *   order.validateOwner(userId, ErrorCode.CANCEL_NOT_OWNED);  // 취소
+     *
+     * @param userId    JWT에서 추출한 현재 사용자 ID
+     * @param errorCode 검증 실패 시 던질 에러코드
      * @throws ForbiddenException 본인 주문이 아닌 경우
      */
-    public void validateOwner(Long userId) {
+    public void validateOwner(Long userId, ErrorCode errorCode) {
         if (!this.user.getUserId().equals(userId)) {
-            throw new ForbiddenException(ErrorCode.ORDER_NOT_OWNED);
-        }
-    }
-
-    /**
-     * 취소 시 소유자 검증 (취소 전용 에러코드)
-     *
-     * @param userId JWT에서 추출한 현재 사용자 ID
-     * @throws ForbiddenException 본인 주문이 아닌 경우
-     */
-    public void validateOwnerForCancel(Long userId) {
-        if (!this.user.getUserId().equals(userId)) {
-            throw new ForbiddenException(ErrorCode.CANCEL_NOT_OWNED);
+            throw new ForbiddenException(errorCode);
         }
     }
 

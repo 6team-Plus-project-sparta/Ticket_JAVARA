@@ -20,10 +20,9 @@ import java.util.List;
  *
  * 처리 순서:
  *   1. orderId로 ORDER 조회 (없으면 404)
- *   2. 소유자 검증 — order.validateOwner(userId) 도메인 메서드 사용
+ *   2. 소유자 검증 — order.validateOwner(userId, ErrorCode) 도메인 메서드 사용
  *   3. BOOKING 목록 조회 (Seat, Section JOIN FETCH — N+1 방지)
  *   4. 서비스에서 seatInfo 문자열 조립 후 BookingItemDto 생성
- *      (DTO 생성자에서 엔티티 탐색하지 않음 — LazyInitializationException 방지)
  *   5. PAYMENT 조회 (PENDING이면 null)
  *   6. 쿠폰 사용 정보 조립 (미사용이면 null)
  *   7. 응답 DTO 반환
@@ -51,8 +50,8 @@ public class OrderDetailService {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.ORDER_NOT_FOUND));
 
-        // ── 2. ⭐ 소유자 검증 (도메인 메서드 — 재사용 가능, 중복 코드 방지) ──
-        order.validateOwner(userId);
+        // ── 2. ⭐ 소유자 검증 (통합 도메인 메서드 — 에러코드 파라미터로 전달) ──
+        order.validateOwner(userId, ErrorCode.ORDER_NOT_OWNED);
 
         // ── 3. BOOKING 목록 조회 (Seat, Section JOIN FETCH — N+1 방지) ──
         List<Booking> bookings = bookingRepository.findByOrderOrderId(orderId);
