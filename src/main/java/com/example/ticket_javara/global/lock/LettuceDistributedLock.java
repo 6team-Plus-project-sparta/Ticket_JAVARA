@@ -58,6 +58,19 @@ public class LettuceDistributedLock implements DistributedLockProvider {
 
     @Override
     public <T> T executeWithLock(String key, Supplier<T> task) {
-        return null;
+        String lockValue = java.util.UUID.randomUUID().toString();
+        long ttlSeconds = 10; // 10초 TTL
+        
+        if (tryLock(key, lockValue, ttlSeconds)) {
+            try {
+                log.debug("[LettuceDistributedLock] 락 획득 성공, 작업 실행 key={}", key);
+                return task.get();
+            } finally {
+                unlock(key, lockValue);
+            }
+        } else {
+            log.warn("[LettuceDistributedLock] 락 획득 실패 key={}", key);
+            throw new RuntimeException("분산락 획득에 실패했습니다: " + key);
+        }
     }
 }

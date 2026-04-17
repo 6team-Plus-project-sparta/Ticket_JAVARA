@@ -65,7 +65,7 @@ public class ChatRoomService {
     }
 
     @Transactional
-    public ChatRoom closeRoom(Long chatRoomId, Long userId, String userRole) {
+    public ChatRoomResponse closeRoom(Long chatRoomId, Long userId, String userRole) {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.CHAT_ROOM_NOT_FOUND));
 
@@ -79,7 +79,7 @@ public class ChatRoomService {
         }
 
         chatRoom.close();
-        return chatRoom;
+        return ChatRoomResponse.of(chatRoom, false); // Service에서 DTO로 변환하여 반환
     }
 
     @Transactional(readOnly = true)
