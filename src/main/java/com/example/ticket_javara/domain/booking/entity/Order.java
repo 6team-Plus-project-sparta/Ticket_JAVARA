@@ -80,12 +80,16 @@ public class Order extends BaseTimeEntity {
      *   order.validateOwner(userId, ErrorCode.ORDER_NOT_OWNED);   // 조회
      *   order.validateOwner(userId, ErrorCode.CANCEL_NOT_OWNED);  // 취소
      *
+     * [null 방어]
+     * DB 스키마상 user_id는 NOT NULL이므로 this.user가 null일 수 없으나,
+     * 방어적 프로그래밍 원칙에 따라 null 체크를 추가하여 NPE로 인한 500 에러 방지
+     *
      * @param userId    JWT에서 추출한 현재 사용자 ID
      * @param errorCode 검증 실패 시 던질 에러코드
      * @throws ForbiddenException 본인 주문이 아닌 경우
      */
     public void validateOwner(Long userId, ErrorCode errorCode) {
-        if (!this.user.getUserId().equals(userId)) {
+        if (this.user == null || !this.user.getUserId().equals(userId)) {
             throw new ForbiddenException(errorCode);
         }
     }
