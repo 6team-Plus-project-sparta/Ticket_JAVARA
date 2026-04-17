@@ -107,7 +107,8 @@ public class CouponService {
             recordFallbackUsage(couponId);
         } else {
             // Redis DECR 성공 -> MySQL remaining_quantity 동기화 처리
-            coupon.decreaseRemainingQuantity();
+            // 문서 명세 FN-CPN-02: 매 발급마다 즉시 동기화하여 Redis 유실 시 복구 기준 유지
+            couponRepository.decrementRemainingQuantity(couponId);
             // 성공 메트릭 기록
             recordSuccessfulIssue(couponId);
         }
@@ -136,6 +137,10 @@ public class CouponService {
         String scriptText = "local exists = redis.call('EXISTS', KEYS[1]) \n" +
                 "if exists == 0 then \n" +
                 "   return nil \n" +
+                "end \n" +
+                "local current = redis.call('GET', KEYS[1]) \n" +
+                "if tonumber(current) <= 0 then \n" +
+                "   return -1 \n" +
                 "end \n" +
                 "local stock = redis.call('DECR', KEYS[1]) \n" +
                 "if stock < 0 then \n" +

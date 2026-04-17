@@ -8,15 +8,18 @@ import com.example.ticket_javara.domain.coupon.entity.UserCouponStatus;
 import com.example.ticket_javara.domain.coupon.repository.CouponRepository;
 import com.example.ticket_javara.domain.coupon.repository.UserCouponRepository;
 import com.example.ticket_javara.domain.user.entity.User;
+import com.example.ticket_javara.domain.user.entity.UserRole;
 import com.example.ticket_javara.domain.user.repository.UserRepository;
 import com.example.ticket_javara.global.exception.BusinessException;
 import com.example.ticket_javara.global.exception.ErrorCode;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,12 +30,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
+import java.lang.reflect.Field;
 
 import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest
 @ActiveProfiles("test")
-@Transactional
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class CouponConcurrencyTest {
 
     @Autowired
@@ -59,13 +63,12 @@ class CouponConcurrencyTest {
         stringRedisTemplate.getConnectionFactory().getConnection().flushAll();
         
         // 테스트 쿠폰 생성
-        CreateCouponRequest request = CreateCouponRequest.builder()
-                .name("동시성 테스트 쿠폰")
-                .discountAmount(5000)
-                .totalQuantity(10) // 제한된 수량으로 경합 상황 조성
-                .startAt(LocalDateTime.now().minusHours(1))
-                .expiredAt(LocalDateTime.now().plusDays(30))
-                .build();
+        CreateCouponRequest request = new CreateCouponRequest();
+        setField(request, "name", "동시성 테스트 쿠폰");
+        setField(request, "discountAmount", 5000);
+        setField(request, "totalQuantity", 10);
+        setField(request, "startAt", LocalDateTime.now().minusHours(1));
+        setField(request, "expiredAt", LocalDateTime.now().plusDays(30));
         
         CreateCouponResponse response = couponService.createCoupon(request);
         testCoupon = couponRepository.findById(response.getCouponId()).orElseThrow();
@@ -76,9 +79,21 @@ class CouponConcurrencyTest {
                         .email("test" + i + "@example.com")
                         .password("password")
                         .nickname("테스터" + i)
+                        .role(UserRole.USER)
                         .build())
                 .map(userRepository::save)
                 .toList();
+    }
+
+    @AfterEach
+    void tearDown() {
+        // Redis 정리
+        stringRedisTemplate.getConnectionFactory().getConnection().flushAll();
+        
+        // DB 정리 (외래키 제약으로 인해 순서 중요)
+        userCouponRepository.deleteAll();
+        couponRepository.deleteAll();
+        userRepository.deleteAll();
     }
 
     @Test
@@ -112,23 +127,28 @@ class CouponConcurrencyTest {
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
         executorService.shutdown();
 
+        // 잠시 대기하여 모든 트랜잭션이 완료되도록 함
+        Thread.sleep(500);
+
         // Then
         assertThat(successCount.get()).isEqualTo(couponQuantity);
         assertThat(failCount.get()).isEqualTo(threadCount - couponQuantity);
         
-        // DB 검증
-        List<UserCoupon> issuedCoupons = userCouponRepository.findByCouponCouponId(testCoupon.getCouponId());
+        // DB 검증 - 실제 발급된 쿠폰 수 확인
+        List<UserCoupon> issuedCoupons = userCouponRepository.findAll().stream()
+                .filter(uc -> uc.getCoupon().getCouponId().equals(testCoupon.getCouponId()))
+                .toList();
         assertThat(issuedCoupons).hasSize(couponQuantity);
         assertThat(issuedCoupons).allMatch(uc -> uc.getStatus() == UserCouponStatus.ISSUED);
         
-        // Redis 재고 검증
+        // MySQL 재고 검증 - 문서 명세에 따라 Redis와 동기화되어야 함
+        Coupon updatedCoupon = couponRepository.findById(testCoupon.getCouponId()).orElseThrow();
+        assertThat(updatedCoupon.getRemainingQuantity()).isEqualTo(0);
+        
+        // Redis 재고 검증 - 0이어야 함 (모든 재고 소진)
         String redisKey = "coupon:stock:" + testCoupon.getCouponId();
         String remainingStock = stringRedisTemplate.opsForValue().get(redisKey);
         assertThat(remainingStock).isEqualTo("0");
-        
-        // MySQL 재고 검증
-        Coupon updatedCoupon = couponRepository.findById(testCoupon.getCouponId()).orElseThrow();
-        assertThat(updatedCoupon.getRemainingQuantity()).isEqualTo(0);
     }
 
     @Test
@@ -164,7 +184,9 @@ class CouponConcurrencyTest {
         // Then - DB Fallback으로도 정상 발급되어야 함
         assertThat(successCount.get()).isGreaterThan(0);
         
-        List<UserCoupon> issuedCoupons = userCouponRepository.findByCouponCouponId(testCoupon.getCouponId());
+        List<UserCoupon> issuedCoupons = userCouponRepository.findAll().stream()
+                .filter(uc -> uc.getCoupon().getCouponId().equals(testCoupon.getCouponId()))
+                .toList();
         assertThat(issuedCoupons).hasSize(successCount.get());
         
         // 메트릭에서 DB Fallback 사용 확인
@@ -195,6 +217,14 @@ class CouponConcurrencyTest {
                         } else {
                             throw e;
                         }
+                    } catch (Exception e) {
+                        // DataIntegrityViolationException도 중복 발급으로 간주
+                        if (e.getCause() instanceof org.springframework.dao.DataIntegrityViolationException ||
+                            e instanceof org.springframework.dao.DataIntegrityViolationException) {
+                            duplicateCount.incrementAndGet();
+                        } else {
+                            throw new RuntimeException(e);
+                        }
                     }
                 }, executorService))
                 .toList();
@@ -214,13 +244,12 @@ class CouponConcurrencyTest {
     @DisplayName("쿠폰 발급 시간 제한 검증")
     void couponIssue_TimeRestriction() {
         // Given - 아직 시작되지 않은 쿠폰
-        CreateCouponRequest futureRequest = CreateCouponRequest.builder()
-                .name("미래 쿠폰")
-                .discountAmount(3000)
-                .totalQuantity(100)
-                .startAt(LocalDateTime.now().plusDays(1)) // 내일 시작
-                .expiredAt(LocalDateTime.now().plusDays(30))
-                .build();
+        CreateCouponRequest futureRequest = new CreateCouponRequest();
+        setField(futureRequest, "name", "미래 쿠폰");
+        setField(futureRequest, "discountAmount", 3000);
+        setField(futureRequest, "totalQuantity", 100);
+        setField(futureRequest, "startAt", LocalDateTime.now().plusDays(1)); // 내일 시작
+        setField(futureRequest, "expiredAt", LocalDateTime.now().plusDays(30));
         
         CreateCouponResponse futureResponse = couponService.createCoupon(futureRequest);
         User testUser = testUsers.get(0);
@@ -232,13 +261,12 @@ class CouponConcurrencyTest {
          .hasFieldOrPropertyWithValue("errorCode", ErrorCode.COUPON_NOT_STARTED);
 
         // Given - 이미 만료된 쿠폰
-        CreateCouponRequest expiredRequest = CreateCouponRequest.builder()
-                .name("만료된 쿠폰")
-                .discountAmount(3000)
-                .totalQuantity(100)
-                .startAt(LocalDateTime.now().minusDays(10))
-                .expiredAt(LocalDateTime.now().minusDays(1)) // 어제 만료
-                .build();
+        CreateCouponRequest expiredRequest = new CreateCouponRequest();
+        setField(expiredRequest, "name", "만료된 쿠폰");
+        setField(expiredRequest, "discountAmount", 3000);
+        setField(expiredRequest, "totalQuantity", 100);
+        setField(expiredRequest, "startAt", LocalDateTime.now().minusDays(10));
+        setField(expiredRequest, "expiredAt", LocalDateTime.now().minusDays(1)); // 어제 만료
         
         CreateCouponResponse expiredResponse = couponService.createCoupon(expiredRequest);
 
@@ -266,5 +294,18 @@ class CouponConcurrencyTest {
         // 대략적인 TTL 검증 (30일 + 7일 여유분 = 37일 정도)
         long expectedTtl = 37 * 24 * 3600; // 37일을 초로 변환
         assertThat(stockTtl).isBetween(expectedTtl - 3600, expectedTtl); // 1시간 오차 허용
+    }
+    
+    /**
+     * Reflection을 사용하여 private 필드에 값 설정
+     */
+    private void setField(Object target, String fieldName, Object value) {
+        try {
+            Field field = target.getClass().getDeclaredField(fieldName);
+            field.setAccessible(true);
+            field.set(target, value);
+        } catch (Exception e) {
+            throw new RuntimeException("필드 설정 실패: " + fieldName, e);
+        }
     }
 }
