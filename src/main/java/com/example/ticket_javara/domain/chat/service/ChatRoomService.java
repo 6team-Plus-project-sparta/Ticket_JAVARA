@@ -65,7 +65,7 @@ public class ChatRoomService {
     }
 
     @Transactional
-    public void closeRoom(Long chatRoomId, Long userId, String userRole) {
+    public ChatRoom closeRoom(Long chatRoomId, Long userId, String userRole) {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.CHAT_ROOM_NOT_FOUND));
 
@@ -79,6 +79,7 @@ public class ChatRoomService {
         }
 
         chatRoom.close();
+        return chatRoom;
     }
 
     @Transactional(readOnly = true)

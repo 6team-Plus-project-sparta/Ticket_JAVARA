@@ -8,4 +8,5 @@ import lombok.Getter;
 public class ChatRoomCloseResponse {
     private String message;
     private Long chatRoomId;
+    private ChatRoomResponse chatRoom;
 }

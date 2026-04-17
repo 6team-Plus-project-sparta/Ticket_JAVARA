@@ -3,6 +3,7 @@ package com.example.ticket_javara.domain.chat.controller;
 import com.example.ticket_javara.domain.chat.dto.AdminChatRoomResponse;
 import com.example.ticket_javara.domain.chat.dto.ChatHistoryResponse;
 import com.example.ticket_javara.domain.chat.dto.ChatRoomResponse;
+import com.example.ticket_javara.domain.chat.entity.ChatRoom;
 import com.example.ticket_javara.domain.chat.service.ChatRoomService;
 import com.example.ticket_javara.global.common.ApiResponse;
 import com.example.ticket_javara.global.security.CustomUserDetails;
@@ -47,11 +48,15 @@ public class ChatRoomController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable Long chatRoomId) {
         
-        chatRoomService.closeRoom(chatRoomId, userDetails.getUserId(), userDetails.getRole());
+        ChatRoom closedRoom = chatRoomService.closeRoom(chatRoomId, userDetails.getUserId(), userDetails.getRole());
+        
+        ChatRoomResponse chatRoomResponse = ChatRoomResponse.of(closedRoom, false);
         ChatRoomCloseResponse response = ChatRoomCloseResponse.builder()
                 .message("채팅방이 종료되었습니다.")
                 .chatRoomId(chatRoomId)
+                .chatRoom(chatRoomResponse)
                 .build();
+        
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
