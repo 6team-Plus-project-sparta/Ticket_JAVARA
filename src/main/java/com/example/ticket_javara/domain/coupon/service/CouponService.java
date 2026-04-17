@@ -107,7 +107,20 @@ public class CouponService {
             recordFallbackUsage(couponId);
         } else {
             // Redis DECR 성공 -> MySQL remaining_quantity 동기화 처리
-            coupon.decreaseRemainingQuantity();
+            // 문서 명세 FN-CPN-02: 매 발급마다 즉시 동기화하여 Redis 유실 시 복구 기준 유지
+            int updatedRows = couponRepository.decrementRemainingQuantity(couponId);
+            if (updatedRows == 0) {
+                // 이미 매진된 상태 - Redis와 DB 동기화 오류
+                // Redis 롤백 처리 (보상 로직)
+                try {
+                    stringRedisTemplate.opsForValue().increment(redisKey);
+                    log.warn("Redis-DB 동기화 실패로 Redis 재고 롤백 - 쿠폰 ID: {}", couponId);
+                } catch (Exception rollbackException) {
+                    log.error("Redis 롤백 실패 - 쿠폰 ID: {}, 에러: {}", couponId, rollbackException.getMessage());
+                    // Redis 롤백 실패 시에도 원래 예외를 던져야 함
+                }
+                throw new BusinessException(ErrorCode.COUPON_EXHAUSTED);
+            }
             // 성공 메트릭 기록
             recordSuccessfulIssue(couponId);
         }

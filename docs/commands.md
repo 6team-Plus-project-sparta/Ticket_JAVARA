@@ -18,6 +18,7 @@ docker ps
 
 ### 6. MySQL 접속
 mysql -u db사용자이름 -p
+mysql -u db사용자이름 -p --default-character-set=utf8mb4 -> 얘는 한글 봐야할때
 db비밀번호
 
 ### 7. DB 선택
