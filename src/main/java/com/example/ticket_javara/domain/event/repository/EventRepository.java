@@ -7,9 +7,11 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 /**
@@ -39,4 +41,20 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     @Query("SELECT e FROM Event e JOIN FETCH e.venue WHERE e.eventId = :eventId")
     Optional<Event> findByIdWithVenue(@Param("eventId") Long eventId);
+
+    // eventDate가 현재 시각보다 이전이고 ON_SALE 또는 SOLD_OUT인 이벤트를 ENDED로 일괄 전환
+    @Modifying
+    @Query("""
+        UPDATE Event e
+        SET e.status = :endedStatus
+        WHERE e.eventDate < :now
+        AND e.status IN (
+            com.example.ticket_javara.domain.event.entity.EventStatus.ON_SALE,
+            com.example.ticket_javara.domain.event.entity.EventStatus.SOLD_OUT
+        )
+    """)
+    int bulkUpdateEndedStatus(
+            @Param("now") LocalDateTime now,
+            @Param("endedStatus") EventStatus endedStatus
+    );
 }

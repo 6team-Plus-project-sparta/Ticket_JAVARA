@@ -2,6 +2,7 @@ package com.example.ticket_javara.domain.event.controller;
 
 import com.example.ticket_javara.domain.event.dto.request.EventCreateRequestDto;
 import com.example.ticket_javara.domain.event.dto.response.EventCreateResponseDto;
+import com.example.ticket_javara.domain.event.service.EventScheduler;
 import com.example.ticket_javara.domain.event.service.EventService;
 import com.example.ticket_javara.global.common.ApiResponse;
 import com.example.ticket_javara.global.exception.ErrorCode;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class EventAdminController {
 
     private final EventService eventService;
+    private final EventScheduler eventScheduler;//스케쥴러테스트용
 
     @PostMapping
     public ResponseEntity<ApiResponse<EventCreateResponseDto>> createEvent(
@@ -37,5 +39,12 @@ public class EventAdminController {
         
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.of(responseDto, "201", "Created"));
+    }
+
+    // 임시 추가 스케쥴러 테스트용
+    @PostMapping("/scheduler/end-events")
+    public ResponseEntity<String> triggerEndEvents() {
+        eventScheduler.updateEndedEvents();
+        return ResponseEntity.ok("ENDED 전환 완료");
     }
 }
