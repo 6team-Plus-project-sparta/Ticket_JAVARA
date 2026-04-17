@@ -8,9 +8,11 @@ import com.example.ticket_javara.domain.coupon.entity.UserCouponStatus;
 import com.example.ticket_javara.domain.coupon.repository.CouponRepository;
 import com.example.ticket_javara.domain.coupon.repository.UserCouponRepository;
 import com.example.ticket_javara.domain.user.entity.User;
+import com.example.ticket_javara.domain.user.entity.UserRole;
 import com.example.ticket_javara.domain.user.repository.UserRepository;
 import com.example.ticket_javara.global.exception.BusinessException;
 import com.example.ticket_javara.global.exception.ErrorCode;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,12 +29,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
+import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.awaitility.Awaitility.await;
 
 @SpringBootTest
 @ActiveProfiles("test")
-@Transactional
 class CouponConcurrencyTest {
 
     @Autowired
@@ -58,11 +61,11 @@ class CouponConcurrencyTest {
         // Redis 키 정리
         stringRedisTemplate.getConnectionFactory().getConnection().flushAll();
         
-        // 테스트 쿠폰 생성
+        // 테스트 쿠폰 생성 - Builder 패턴 사용
         CreateCouponRequest request = CreateCouponRequest.builder()
                 .name("동시성 테스트 쿠폰")
                 .discountAmount(5000)
-                .totalQuantity(10) // 제한된 수량으로 경합 상황 조성
+                .totalQuantity(10)
                 .startAt(LocalDateTime.now().minusHours(1))
                 .expiredAt(LocalDateTime.now().plusDays(30))
                 .build();
@@ -76,9 +79,22 @@ class CouponConcurrencyTest {
                         .email("test" + i + "@example.com")
                         .password("password")
                         .nickname("테스터" + i)
+                        .role(UserRole.USER)
                         .build())
                 .map(userRepository::save)
                 .toList();
+    }
+
+    @AfterEach
+    void tearDown() {
+        // Redis 정리
+        stringRedisTemplate.getConnectionFactory().getConnection().flushAll();
+        
+        // DB 정리 - 동시성 테스트 특성상 @Transactional 사용 불가하여 직접 정리
+        // 외래키 제약으로 인해 순서 중요
+        userCouponRepository.deleteAll();
+        couponRepository.deleteAll();
+        userRepository.deleteAll();
     }
 
     @Test
@@ -112,23 +128,30 @@ class CouponConcurrencyTest {
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
         executorService.shutdown();
 
+        // awaitility를 사용하여 DB에 정확히 10개의 쿠폰이 발급될 때까지 대기
+        await().atMost(Duration.ofSeconds(10))
+                .untilAsserted(() -> {
+                    List<UserCoupon> issuedCoupons = userCouponRepository.findByCouponCouponId(testCoupon.getCouponId());
+                    assertThat(issuedCoupons).hasSize(couponQuantity);
+                });
+
         // Then
         assertThat(successCount.get()).isEqualTo(couponQuantity);
         assertThat(failCount.get()).isEqualTo(threadCount - couponQuantity);
         
-        // DB 검증
+        // DB 검증 - 필요한 데이터만 DB에서 직접 필터링하여 조회 (성능 및 가독성 향상)
         List<UserCoupon> issuedCoupons = userCouponRepository.findByCouponCouponId(testCoupon.getCouponId());
         assertThat(issuedCoupons).hasSize(couponQuantity);
         assertThat(issuedCoupons).allMatch(uc -> uc.getStatus() == UserCouponStatus.ISSUED);
         
-        // Redis 재고 검증
+        // MySQL 재고 검증 - 문서 명세에 따라 Redis와 동기화되어야 함
+        Coupon updatedCoupon = couponRepository.findById(testCoupon.getCouponId()).orElseThrow();
+        assertThat(updatedCoupon.getRemainingQuantity()).isEqualTo(0);
+        
+        // Redis 재고 검증 - 0이어야 함 (모든 재고 소진)
         String redisKey = "coupon:stock:" + testCoupon.getCouponId();
         String remainingStock = stringRedisTemplate.opsForValue().get(redisKey);
         assertThat(remainingStock).isEqualTo("0");
-        
-        // MySQL 재고 검증
-        Coupon updatedCoupon = couponRepository.findById(testCoupon.getCouponId()).orElseThrow();
-        assertThat(updatedCoupon.getRemainingQuantity()).isEqualTo(0);
     }
 
     @Test
@@ -164,7 +187,9 @@ class CouponConcurrencyTest {
         // Then - DB Fallback으로도 정상 발급되어야 함
         assertThat(successCount.get()).isGreaterThan(0);
         
-        List<UserCoupon> issuedCoupons = userCouponRepository.findByCouponCouponId(testCoupon.getCouponId());
+        List<UserCoupon> issuedCoupons = userCouponRepository.findAll().stream()
+                .filter(uc -> uc.getCoupon().getCouponId().equals(testCoupon.getCouponId()))
+                .toList();
         assertThat(issuedCoupons).hasSize(successCount.get());
         
         // 메트릭에서 DB Fallback 사용 확인
@@ -194,6 +219,14 @@ class CouponConcurrencyTest {
                             duplicateCount.incrementAndGet();
                         } else {
                             throw e;
+                        }
+                    } catch (Exception e) {
+                        // DataIntegrityViolationException도 중복 발급으로 간주
+                        if (e.getCause() instanceof org.springframework.dao.DataIntegrityViolationException ||
+                            e instanceof org.springframework.dao.DataIntegrityViolationException) {
+                            duplicateCount.incrementAndGet();
+                        } else {
+                            throw new RuntimeException(e);
                         }
                     }
                 }, executorService))
