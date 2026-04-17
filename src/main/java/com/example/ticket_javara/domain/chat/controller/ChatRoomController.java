@@ -4,6 +4,7 @@ import com.example.ticket_javara.domain.chat.dto.AdminChatRoomResponse;
 import com.example.ticket_javara.domain.chat.dto.ChatHistoryResponse;
 import com.example.ticket_javara.domain.chat.dto.ChatRoomResponse;
 import com.example.ticket_javara.domain.chat.service.ChatRoomService;
+import com.example.ticket_javara.global.common.ApiResponse;
 import com.example.ticket_javara.global.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -23,14 +24,14 @@ public class ChatRoomController {
     private final ChatRoomService chatRoomService;
 
     @PostMapping("/chat/rooms")
-    public ResponseEntity<ChatRoomResponse> createOrGetRoom(
+    public ResponseEntity<ApiResponse<ChatRoomResponse>> createOrGetRoom(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         ChatRoomResponse response = chatRoomService.createOrGetRoom(userDetails.getUserId());
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @GetMapping("/chat/rooms/{chatRoomId}/messages")
-    public ResponseEntity<ChatHistoryResponse> getChatHistory(
+    public ResponseEntity<ApiResponse<ChatHistoryResponse>> getChatHistory(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable Long chatRoomId,
             @RequestParam(required = false) Long cursor,
@@ -38,32 +39,31 @@ public class ChatRoomController {
         
         ChatHistoryResponse response = chatRoomService.getChatHistory(
                 chatRoomId, cursor, size, userDetails.getUserId(), userDetails.getRole());
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @PatchMapping("/chat/rooms/{chatRoomId}/close")
-    public ResponseEntity<ChatRoomCloseResponse> closeRoom(
+    public ResponseEntity<ApiResponse<ChatRoomCloseResponse>> closeRoom(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable Long chatRoomId) {
         
         chatRoomService.closeRoom(chatRoomId, userDetails.getUserId(), userDetails.getRole());
-        return ResponseEntity.ok(
-                ChatRoomCloseResponse.builder()
-                        .message("채팅방이 종료되었습니다.")
-                        .chatRoomId(chatRoomId)
-                        .build()
-        );
+        ChatRoomCloseResponse response = ChatRoomCloseResponse.builder()
+                .message("채팅방이 종료되었습니다.")
+                .chatRoomId(chatRoomId)
+                .build();
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @GetMapping("/admin/chat/rooms")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Page<AdminChatRoomResponse>> getAdminChatRooms(
+    public ResponseEntity<ApiResponse<Page<AdminChatRoomResponse>>> getAdminChatRooms(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestParam(required = false, defaultValue = "OPEN") String status,
             Pageable pageable) {
         
         Page<AdminChatRoomResponse> response = chatRoomService.getAdminChatRooms(
                 status, pageable, userDetails.getRole());
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
