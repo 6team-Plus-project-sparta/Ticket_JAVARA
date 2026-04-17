@@ -20,6 +20,8 @@ public class EventDetailResponseDto implements Serializable {
     private EventCategory category;
     private VenueDto venue;
     private LocalDateTime eventDate;
+    private LocalDateTime saleStartAt;
+    private LocalDateTime saleEndAt;
     private String description;
     private String thumbnailUrl;
     private List<SectionDetailDto> sections;

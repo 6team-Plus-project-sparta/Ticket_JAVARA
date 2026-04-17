@@ -154,6 +154,8 @@ public class EventService {
                         .address(event.getVenue().getAddress())
                         .build())
                 .eventDate(event.getEventDate())
+                .saleStartAt(event.getSaleStartAt())
+                .saleEndAt(event.getSaleEndAt())
                 .description(event.getDescription())
                 .thumbnailUrl(event.getThumbnailUrl())
                 .sections(sectionDtos)
