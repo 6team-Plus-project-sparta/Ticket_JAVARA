@@ -1,8 +1,10 @@
 package com.example.ticket_javara.domain.booking.controller;
 
 import com.example.ticket_javara.domain.booking.dto.request.OrderCreateRequestDto;
+import com.example.ticket_javara.domain.booking.dto.response.OrderDetailResponseDto;
 import com.example.ticket_javara.domain.booking.dto.response.OrderResponseDto;
 import com.example.ticket_javara.domain.booking.service.CancelService;
+import com.example.ticket_javara.domain.booking.service.OrderDetailService;
 import com.example.ticket_javara.domain.booking.service.OrderService;
 import com.example.ticket_javara.global.common.ApiResponse;
 import com.example.ticket_javara.global.security.CustomUserDetails;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
  * 주문 컨트롤러
  * API:
  *   POST /api/orders                    — 주문 생성 (FN-BK-01)
+ *   GET  /api/orders/{orderId}          — 주문 상세 조회 (FN-BK-06)
  *   POST /api/orders/{orderId}/cancel   — 주문 취소 (FN-BK-03)
  */
 @Slf4j
@@ -26,6 +29,7 @@ import org.springframework.web.bind.annotation.*;
 public class OrderController {
 
     private final OrderService orderService;
+    private final OrderDetailService orderDetailService;
     private final CancelService cancelService;
 
     /**
@@ -47,6 +51,28 @@ public class OrderController {
         log.info("[OrderController] 주문 생성 요청 userId={}, holdTokens={}", userId, request.getHoldTokens());
 
         OrderResponseDto response = orderService.createOrder(request, userId);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * GET /api/orders/{orderId}
+     * 주문 상세 조회 (FN-BK-06)
+     *
+     * 주문 생성(PENDING) 후 결제 결과 폴링 용도로도 사용 가능
+     * ORDER + BOOKING 목록 + PAYMENT + 쿠폰 정보 한번에 반환
+     *
+     * @return 200 OK OrderDetailResponseDto
+     */
+    @GetMapping("/{orderId}")
+    public ResponseEntity<ApiResponse<OrderDetailResponseDto>> getOrderDetail(
+            @PathVariable Long orderId,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+
+        Long userId = userDetails.getUserId();
+        log.info("[OrderController] 주문 상세 조회 orderId={}, userId={}", orderId, userId);
+
+        OrderDetailResponseDto response = orderDetailService.getOrderDetail(orderId, userId);
 
         return ResponseEntity.ok(ApiResponse.success(response));
     }
