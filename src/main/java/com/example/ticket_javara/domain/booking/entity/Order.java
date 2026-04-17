@@ -3,6 +3,8 @@ package com.example.ticket_javara.domain.booking.entity;
 import com.example.ticket_javara.domain.coupon.entity.UserCoupon;
 import com.example.ticket_javara.domain.user.entity.User;
 import com.example.ticket_javara.global.common.BaseTimeEntity;
+import com.example.ticket_javara.global.exception.ErrorCode;
+import com.example.ticket_javara.global.exception.ForbiddenException;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -69,6 +71,31 @@ public class Order extends BaseTimeEntity {
     }
 
     // ── 비즈니스 메서드 ──
+
+    /**
+     * 주문 소유자 검증 (도메인 메서드)
+     * 조회, 취소 등 여러 곳에서 재사용하여 중복 코드 방지
+     *
+     * @param userId JWT에서 추출한 현재 사용자 ID
+     * @throws ForbiddenException 본인 주문이 아닌 경우
+     */
+    public void validateOwner(Long userId) {
+        if (!this.user.getUserId().equals(userId)) {
+            throw new ForbiddenException(ErrorCode.ORDER_NOT_OWNED);
+        }
+    }
+
+    /**
+     * 취소 시 소유자 검증 (취소 전용 에러코드)
+     *
+     * @param userId JWT에서 추출한 현재 사용자 ID
+     * @throws ForbiddenException 본인 주문이 아닌 경우
+     */
+    public void validateOwnerForCancel(Long userId) {
+        if (!this.user.getUserId().equals(userId)) {
+            throw new ForbiddenException(ErrorCode.CANCEL_NOT_OWNED);
+        }
+    }
 
     /** 주문 확정 */
     public void confirm() {

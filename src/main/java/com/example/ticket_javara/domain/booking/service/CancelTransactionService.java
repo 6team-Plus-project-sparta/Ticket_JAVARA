@@ -18,15 +18,12 @@ import java.util.List;
  *
  * [분리 이유]
  * CancelService.cancelOrder()(트랜잭션 없음)에서 같은 클래스 내부의
- * cancelOrderInTransaction()(@Transactional)을 호출하면
- * Spring AOP 프록시를 우회하여 @Transactional이 작동하지 않음 (Self-invocation 문제)
- * → 별도 Bean으로 분리하여 프록시를 통한 트랜잭션 보장
- *
- * WebhookService → BookingConfirmService 분리와 동일한 패턴
+ * @Transactional 메서드를 호출하면 Spring AOP 프록시를 우회하여 트랜잭션 미적용
+ * → 별도 Bean으로 분리하여 프록시를 통한 트랜잭션 보장 (Self-invocation 문제 해결)
  *
  * 처리 내용 (단일 트랜잭션, SELECT FOR UPDATE 비관적 락):
  *   1. ORDER 비관적 락 조회
- *   2. 본인 주문 확인
+ *   2. 소유자 검증 — order.validateOwnerForCancel(userId) 도메인 메서드 사용
  *   3. CONFIRMED 상태 확인
  *   4. BOOKING 비관적 락 조회
  *   5. isEmpty() 확인 (get(0) 호출 전 반드시 수행)
@@ -54,7 +51,7 @@ public class CancelTransactionService {
 
     /**
      * 주문 취소 DB 처리 (트랜잭션 보장)
-     * CancelService.cancelOrder()에서 호출 — 반드시 별도 Bean 주입을 통해 호출해야 @Transactional 적용됨
+     * CancelService.cancelOrder()에서 호출
      *
      * @param orderId 취소할 주문 ID
      * @param userId  JWT에서 추출한 현재 사용자 ID
@@ -66,17 +63,14 @@ public class CancelTransactionService {
         Order order = orderRepository.findByIdWithLock(orderId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.ORDER_NOT_FOUND));
 
-        // ── 2. 본인 주문 확인 ──
-        if (!order.getUser().getUserId().equals(userId)) {
-            throw new ForbiddenException(ErrorCode.CANCEL_NOT_OWNED);
-        }
+        // ── 2. ⭐ 소유자 검증 (도메인 메서드 — 재사용 가능, 중복 코드 방지) ──
+        order.validateOwnerForCancel(userId);
 
         // ── 3. 취소 가능한 상태 확인 ──
         if (OrderStatus.CANCELLED.equals(order.getStatus())) {
             throw new InvalidRequestException(ErrorCode.ORDER_ALREADY_CANCELLED);
         }
         if (!OrderStatus.CONFIRMED.equals(order.getStatus())) {
-            // PENDING, FAILED 상태는 취소 불가 (CONFIRMED만 가능)
             throw new InvalidRequestException(ErrorCode.ORDER_ALREADY_CANCELLED);
         }
 
@@ -121,7 +115,6 @@ public class CancelTransactionService {
                     .findByIdWithLock(order.getUserCoupon().getUserCouponId())
                     .orElseThrow(() -> new NotFoundException(ErrorCode.COUPON_NOT_FOUND));
 
-            // USED 상태일 때만 복원 (이미 복원됐으면 무시)
             if (!userCoupon.isUsable()) {
                 userCoupon.restore();
                 log.info("[CancelTransactionService] 쿠폰 복원 완료 userCouponId={}",

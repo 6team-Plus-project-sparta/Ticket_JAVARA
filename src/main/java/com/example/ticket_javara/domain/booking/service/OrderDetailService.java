@@ -7,7 +7,6 @@ import com.example.ticket_javara.domain.booking.repository.BookingRepository;
 import com.example.ticket_javara.domain.booking.repository.OrderRepository;
 import com.example.ticket_javara.domain.booking.repository.PaymentRepository;
 import com.example.ticket_javara.global.exception.ErrorCode;
-import com.example.ticket_javara.global.exception.ForbiddenException;
 import com.example.ticket_javara.global.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,16 +20,13 @@ import java.util.List;
  *
  * 처리 순서:
  *   1. orderId로 ORDER 조회 (없으면 404)
- *   2. ORDER.userId == JWT userId 확인 (불일치 시 403)
+ *   2. 소유자 검증 — order.validateOwner(userId) 도메인 메서드 사용
  *   3. BOOKING 목록 조회 (Seat, Section JOIN FETCH — N+1 방지)
  *   4. 서비스에서 seatInfo 문자열 조립 후 BookingItemDto 생성
  *      (DTO 생성자에서 엔티티 탐색하지 않음 — LazyInitializationException 방지)
  *   5. PAYMENT 조회 (PENDING이면 null)
  *   6. 쿠폰 사용 정보 조립 (미사용이면 null)
  *   7. 응답 DTO 반환
- *
- * 폴링 용도:
- *   주문 생성(PENDING) 후 결제 결과 확인(CONFIRMED/FAILED) 폴링 엔드포인트로 활용 가능
  */
 @Slf4j
 @Service
@@ -55,18 +51,15 @@ public class OrderDetailService {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.ORDER_NOT_FOUND));
 
-        // ── 2. 본인 주문 확인 ──
-        if (!order.getUser().getUserId().equals(userId)) {
-            throw new ForbiddenException(ErrorCode.ORDER_NOT_OWNED);
-        }
+        // ── 2. ⭐ 소유자 검증 (도메인 메서드 — 재사용 가능, 중복 코드 방지) ──
+        order.validateOwner(userId);
 
         // ── 3. BOOKING 목록 조회 (Seat, Section JOIN FETCH — N+1 방지) ──
-        // BookingRepository.findByOrderOrderId(): Seat, Section, Event JOIN FETCH 포함
         List<Booking> bookings = bookingRepository.findByOrderOrderId(orderId);
 
         // ── 4. ⭐ 서비스에서 seatInfo 조립 후 DTO 생성 ──
         // DTO 생성자에서 getSeat().getSection()... 탐색하지 않음
-        // → LazyInitializationException 방지 (트랜잭션 범위 밖 프록시 초기화 실패 방지)
+        // → LazyInitializationException 방지
         List<OrderDetailResponseDto.BookingItemDto> bookingItems = bookings.stream()
                 .map(booking -> {
                     String seatInfo = booking.getSeat().getSection().getSectionName()
@@ -89,8 +82,6 @@ public class OrderDetailService {
                 .orElse(null);
 
         // ── 6. 쿠폰 사용 정보 조립 (미사용이면 null) ──
-        // UserCoupon → Coupon 탐색: ORDER 조회 시 userCoupon이 LAZY이므로
-        // 트랜잭션 내에서 접근해야 정상 동작
         OrderDetailResponseDto.CouponUsedDto couponUsedDto = null;
         if (order.getUserCoupon() != null) {
             couponUsedDto = new OrderDetailResponseDto.CouponUsedDto(
