@@ -21,8 +21,9 @@ import java.util.List;
  * 처리 순서:
  *   1. orderId로 ORDER 조회 (없으면 404)
  *   2. 소유자 검증 — order.validateOwner(userId, ErrorCode) 도메인 메서드 사용
- *   3. BOOKING 목록 조회 (Seat, Section JOIN FETCH — N+1 방지)
- *   4. 서비스에서 seatInfo 문자열 조립 후 BookingItemDto 생성
+ *   3. BOOKING 목록 조회 (Seat, Section, Event JOIN FETCH — N+1 방지)
+ *   4. 서비스에서 eventTitle, seatInfo 조립 후 BookingItemDto 생성
+ *      (DTO 생성자에서 엔티티 탐색하지 않음 — LazyInitializationException 방지)
  *   5. PAYMENT 조회 (PENDING이면 null)
  *   6. 쿠폰 사용 정보 조립 (미사용이면 null)
  *   7. 응답 DTO 반환
@@ -50,22 +51,25 @@ public class OrderDetailService {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.ORDER_NOT_FOUND));
 
-        // ── 2. ⭐ 소유자 검증 (통합 도메인 메서드 — 에러코드 파라미터로 전달) ──
+        // ── 2. 소유자 검증 (도메인 메서드) ──
         order.validateOwner(userId, ErrorCode.ORDER_NOT_OWNED);
 
-        // ── 3. BOOKING 목록 조회 (Seat, Section JOIN FETCH — N+1 방지) ──
+        // ── 3. BOOKING 목록 조회 (Seat, Section, Event JOIN FETCH — N+1 방지) ──
         List<Booking> bookings = bookingRepository.findByOrderOrderId(orderId);
 
-        // ── 4. ⭐ 서비스에서 seatInfo 조립 후 DTO 생성 ──
-        // DTO 생성자에서 getSeat().getSection()... 탐색하지 않음
-        // → LazyInitializationException 방지
+        // ── 4. ⭐ 서비스에서 eventTitle, seatInfo 조립 후 DTO 생성 ──
+        // DTO 생성자에서 엔티티 탐색하지 않음 → LazyInitializationException 방지
+        // Booking → Event → title, Booking → Seat → Section → sectionName 등
+        // 모두 트랜잭션 내부에서 JOIN FETCH된 데이터로 안전하게 접근
         List<OrderDetailResponseDto.BookingItemDto> bookingItems = bookings.stream()
                 .map(booking -> {
+                    String eventTitle = booking.getEvent().getTitle();
                     String seatInfo = booking.getSeat().getSection().getSectionName()
                             + " " + booking.getSeat().getRowName()
                             + " " + booking.getSeat().getColNum() + "번";
                     return new OrderDetailResponseDto.BookingItemDto(
                             booking.getBookingId(),
+                            eventTitle,
                             seatInfo,
                             booking.getOriginalPrice(),
                             booking.getTicketCode(),

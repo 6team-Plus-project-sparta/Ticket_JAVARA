@@ -3,7 +3,6 @@ package com.example.ticket_javara.domain.booking.dto.response;
 import com.example.ticket_javara.domain.booking.entity.Order;
 import com.example.ticket_javara.domain.booking.entity.OrderStatus;
 import com.example.ticket_javara.domain.booking.entity.Payment;
-import com.example.ticket_javara.domain.coupon.entity.UserCoupon;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
@@ -19,7 +18,7 @@ import java.util.List;
  *
  * 반환 정보:
  *   - 주문 기본 정보 (orderId, status, 금액)
- *   - 예매 목록 (좌석 정보, 원가, 티켓 코드, 상태)
+ *   - 예매 목록 (이벤트명, 좌석 정보, 원가, 티켓 코드, 상태)
  *   - 결제 정보 (결제키, 수단, 금액, 결제 시각)
  *   - 쿠폰 사용 정보 (쿠폰명, 할인액)
  *   - 주문 생성 시각
@@ -61,22 +60,28 @@ public class OrderDetailResponseDto {
     /**
      * 예매 항목 DTO (좌석별)
      *
-     * [변경 이유]
-     * 기존: 생성자에서 booking.getSeat().getSection()... 엔티티 탐색
-     * → LazyInitializationException 위험 (트랜잭션 범위 밖 프록시 초기화 실패)
-     * 변경: 서비스에서 seatInfo 문자열을 미리 조립하여 파라미터로 전달
+     * [설계 원칙]
+     * 서비스에서 값을 미리 조립하여 파라미터로 전달 (엔티티 탐색 금지)
+     * → LazyInitializationException 방지
+     *
+     * [eventTitle 추가]
+     * Booking → Event → title 탐색은 서비스에서 수행 후 파라미터로 전달
+     * 다회차 공연처럼 ORDER 내 BOOKING이 여러 EVENT에 속할 수 있으므로
+     * BookingItemDto 단위로 eventTitle을 보유하는 것이 적합
      */
     @Getter
     public static class BookingItemDto {
         private final Long bookingId;
+        private final String eventTitle;     // 이벤트명 — 서비스에서 조립하여 전달
         private final String seatInfo;       // "A구역 A열 15번" — 서비스에서 조립하여 전달
         private final Integer originalPrice;
         private final String ticketCode;     // CONFIRMED 시 발급, 그 외 null
         private final OrderStatus status;
 
-        public BookingItemDto(Long bookingId, String seatInfo,
+        public BookingItemDto(Long bookingId, String eventTitle, String seatInfo,
                               Integer originalPrice, String ticketCode, OrderStatus status) {
             this.bookingId = bookingId;
+            this.eventTitle = eventTitle;
             this.seatInfo = seatInfo;
             this.originalPrice = originalPrice;
             this.ticketCode = ticketCode;
@@ -107,7 +112,7 @@ public class OrderDetailResponseDto {
 
     /**
      * 쿠폰 사용 정보 DTO
-     * UserCoupon → Coupon 탐색이 있으므로 서비스에서 JOIN FETCH 후 전달
+     * UserCoupon → Coupon 탐색이 있으므로 서비스에서 값 조립 후 전달
      */
     @Getter
     public static class CouponUsedDto {
