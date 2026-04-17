@@ -36,4 +36,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             "JOIN FETCH e.sections " +
             "WHERE e.eventId = :eventId")
     Optional<Event> findByIdWithVenueAndSections(@Param("eventId") Long eventId);
+
+    @Query("SELECT e FROM Event e JOIN FETCH e.venue WHERE e.eventId = :eventId")
+    Optional<Event> findByIdWithVenue(@Param("eventId") Long eventId);
 }

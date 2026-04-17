@@ -27,4 +27,6 @@ public interface UserCouponRepository extends JpaRepository<UserCoupon, Long> {
     Optional<UserCoupon> findByIdWithLock(@Param("userCouponId") Long userCouponId);
 
     List<UserCoupon> findByUserUserId(Long userId);
+
+    List<UserCoupon> findByCouponCouponId(Long couponId);
 }
