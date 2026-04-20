@@ -5,6 +5,7 @@ import com.example.ticket_javara.domain.chat.service.ChatMessageService;
 import com.example.ticket_javara.domain.chat.service.SystemMessageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.MessageDeliveryException;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
@@ -30,7 +31,7 @@ public class ChatMessageController {
     public void sendMessage(@Payload @Valid ChatMessageRequest request, Principal principal) {
         if (principal == null) {
             log.warn("[STOMP] 인증되지 않은 세션의 메시지 전송 시도");
-            return;
+            throw new MessageDeliveryException("STOMP SEND unauthorized: principal is null");
         }
 
         CustomUserDetails userDetails = (CustomUserDetails) ((UsernamePasswordAuthenticationToken) principal).getPrincipal();
@@ -53,7 +54,7 @@ public class ChatMessageController {
                          SimpMessageHeaderAccessor headerAccessor) {
         if (principal == null) {
             log.warn("[STOMP] 인증되지 않은 입장 시도");
-            return;
+            throw new MessageDeliveryException("STOMP JOIN unauthorized: principal is null");
         }
 
         Long chatRoomId = payload.getChatRoomId();
@@ -61,13 +62,16 @@ public class ChatMessageController {
         Map<String, Object> sessionAttrs = headerAccessor.getSessionAttributes();
         if (sessionAttrs == null) {
             log.error("[STOMP] WebSocket 세션이 초기화되지 않은 비정상적 요청");
-            return;
+            throw new MessageDeliveryException("STOMP JOIN invalid session: session attributes missing");
         }
 
         CustomUserDetails userDetails = (CustomUserDetails) ((UsernamePasswordAuthenticationToken) principal).getPrincipal();
 
         // ★ StompHandler.CONNECT 시 세션에 저장된 nickname 사용 (DB 재조회 없음)
-        String nickname = (String) sessionAttrs.getOrDefault("stomp_nickname", "사용자");
+        Object nicknameObj = sessionAttrs.get("stomp_nickname");
+        if (!(nicknameObj instanceof String nickname) || nickname.isBlank()) {
+            throw new MessageDeliveryException("STOMP JOIN invalid session: nickname missing");
+        }
 
         // 퇴장 메시지용 세션 속성 저장 → StompHandler.DISCONNECT 에서 읽음
         sessionAttrs.put("chatRoomId", chatRoomId);

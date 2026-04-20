@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
+import org.springframework.messaging.MessageDeliveryException;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
@@ -57,14 +58,14 @@ public class StompHandler implements ChannelInterceptor {
 
             if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
                 log.warn("[StompHandler] 토큰 누락 또는 형식 오류");
-                throw new ForbiddenException(ErrorCode.INVALID_TOKEN);
+                throw new MessageDeliveryException("STOMP CONNECT unauthorized: missing/invalid Authorization header");
             }
 
             String token = authorizationHeader.substring(7);
 
             if (jwtUtil.validateToken(token) != JwtUtil.TokenStatus.VALID) {
                 log.warn("[StompHandler] 유효하지 않은 STOMP 토큰 연결 시도");
-                throw new ForbiddenException(ErrorCode.INVALID_TOKEN);
+                throw new MessageDeliveryException("STOMP CONNECT unauthorized: invalid token");
             }
 
             Long userId = jwtUtil.getUserId(token);
@@ -81,7 +82,7 @@ public class StompHandler implements ChannelInterceptor {
             // ChatMessageController.joinRoom()에서 이 값을 읽어 DB 재조회를 생략한다.
             String nickname = userRepository.findById(userId)
                     .map(com.example.ticket_javara.domain.user.entity.User::getNickname)
-                    .orElse("사용자");
+                    .orElseThrow(() -> new MessageDeliveryException("STOMP CONNECT unauthorized: user not found"));
             Map<String, Object> sessionAttrs = accessor.getSessionAttributes();
             if (sessionAttrs != null) {
                 sessionAttrs.put("stomp_nickname", nickname);
@@ -89,6 +90,13 @@ public class StompHandler implements ChannelInterceptor {
 
             log.debug("[StompHandler] CONNECT - userId: {}, nickname: {}", userId, nickname);
 
+        } else if (StompCommand.SEND.equals(accessor.getCommand())
+                || StompCommand.SUBSCRIBE.equals(accessor.getCommand())
+                || StompCommand.UNSUBSCRIBE.equals(accessor.getCommand())) {
+            // CONNECT 단계에서 principal이 세팅되지 않은 세션은 이후 단계에서 더 이상 진행시키지 않는다.
+            if (accessor.getUser() == null) {
+                throw new MessageDeliveryException("STOMP message unauthorized: principal is null");
+            }
         } else if (StompCommand.DISCONNECT.equals(accessor.getCommand())) {
             // 퇴장 시스템 메시지 전송 (세션 속성에서 정보 읽기)
             Map<String, Object> sessionAttrs = accessor.getSessionAttributes();
