@@ -1,17 +1,14 @@
 package com.example.ticket_javara.domain.search.dto.request;
 
 import com.example.ticket_javara.domain.event.entity.EventCategory;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.LocalDate;
 
 @Getter
-@Setter
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
+@Builder
 public class SearchRequestDto {
     private String keyword;
     private EventCategory category;

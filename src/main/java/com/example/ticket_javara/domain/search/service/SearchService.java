@@ -43,6 +43,11 @@ public class SearchService {
 
         Page<Event> events = eventSearchRepository.searchEvents(requestDto, pageable);
 
+        // 검색 결과가 존재할 때만 인기 검색어로 기록 (선택적 비즈니스 룰 적용)
+        if (events.hasContent() && requestDto.getKeyword() != null) {
+            incrementSearchKeyword(requestDto.getKeyword());
+        }
+
         Page<EventSummaryResponseDto> result = mapToSummary(events);
 
         long endTime = System.currentTimeMillis();

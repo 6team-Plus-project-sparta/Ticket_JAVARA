@@ -11,7 +11,6 @@ import java.time.LocalDateTime;
 @Getter
 @Builder
 @AllArgsConstructor
-@NoArgsConstructor
 public class EventSummaryResponseDto {
     private Long eventId;
     private String title;
