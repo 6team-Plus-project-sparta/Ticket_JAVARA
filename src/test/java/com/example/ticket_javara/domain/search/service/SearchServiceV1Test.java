@@ -44,6 +44,9 @@ import static org.mockito.Mockito.*;
  * - EventSearchRepository : QueryDSL 동적 검색 쿼리 (BooleanBuilder)
  * - SeatRepository         : mapToSummary() 내부에서 잔여 좌석 수 조회
  * - RedisTemplate          : evictSearchCache()에서 SCAN + DEL 사용
+ *                   (도전 기능 — Redis Cache-Aside 단계에서 search:* 패턴 키 삭제)
+ *                   Caffeine 단계에서는 @CacheEvict(allEntries=true)가 SA 문서 기준
+ *                   현재 구현은 Redis 단계 방식으로 선적용된 상태
  * - StringRedisTemplate    : incrementSearchKeyword()에서 ZINCRBY 사용
  * - CacheManager           : isCacheHit() 캐시 히트 여부 확인
  *
