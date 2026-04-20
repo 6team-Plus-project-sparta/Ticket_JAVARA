@@ -41,7 +41,8 @@ class AuthorizationUtilTest {
         assertThatThrownBy(() -> AuthorizationUtil.requireAdmin("admin")) // 소문자
                 .isInstanceOf(ForbiddenException.class);
         
-        assertThatThrownBy(() -> AuthorizationUtil.requireAdmin(null))
+        // null 테스트는 명시적으로 String 타입으로 캐스팅
+        assertThatThrownBy(() -> AuthorizationUtil.requireAdmin((String) null))
                 .isInstanceOf(ForbiddenException.class);
     }
 
@@ -53,7 +54,8 @@ class AuthorizationUtilTest {
         assertThat(AuthorizationUtil.isAdmin("USER")).isFalse();
         assertThat(AuthorizationUtil.isAdmin("admin")).isFalse(); // 대소문자 구분
         assertThat(AuthorizationUtil.isAdmin("ADMIM")).isFalse(); // 오타
-        assertThat(AuthorizationUtil.isAdmin(null)).isFalse();
+        // null 테스트는 명시적으로 String 타입으로 캐스팅
+        assertThat(AuthorizationUtil.isAdmin((String) null)).isFalse();
     }
 
     @Test
