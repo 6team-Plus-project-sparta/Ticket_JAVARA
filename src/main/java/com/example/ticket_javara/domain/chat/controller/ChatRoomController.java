@@ -3,10 +3,11 @@ package com.example.ticket_javara.domain.chat.controller;
 import com.example.ticket_javara.domain.chat.dto.AdminChatRoomResponse;
 import com.example.ticket_javara.domain.chat.dto.ChatHistoryResponse;
 import com.example.ticket_javara.domain.chat.dto.ChatRoomResponse;
-import com.example.ticket_javara.domain.chat.entity.ChatRoom;
+import com.example.ticket_javara.domain.chat.dto.UpdateChatRoomStatusRequest;
 import com.example.ticket_javara.domain.chat.service.ChatRoomService;
 import com.example.ticket_javara.global.common.ApiResponse;
 import com.example.ticket_javara.global.security.CustomUserDetails;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -14,8 +15,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
@@ -54,19 +53,20 @@ public class ChatRoomController {
     /**
      * 관리자: 채팅방 상태 전이
      * WAITING → IN_PROGRESS → COMPLETED (역방향 불가)
-     * Request Body: { "status": "IN_PROGRESS" }
+     *
+     * ★ 항목 1 개선: Service가 DTO를 반환하므로 Controller는 HTTP 통신만 처리
+     * ★ 항목 3 개선: Map<String,String> 제거 → @Valid DTO로 입력값 강제 및 NPE 방지
      */
     @PatchMapping("/admin/chat/rooms/{chatRoomId}/status")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<ChatRoomResponse>> updateRoomStatus(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable Long chatRoomId,
-            @RequestBody Map<String, String> body) {
+            @Valid @RequestBody UpdateChatRoomStatusRequest request) {
 
-        String targetStatus = body.get("status");
-        ChatRoom updatedRoom = chatRoomService.updateRoomStatus(
-                chatRoomId, targetStatus, userDetails.getUserId(), userDetails.getRole());
-        return ResponseEntity.ok(ApiResponse.success(ChatRoomResponse.of(updatedRoom, false)));
+        ChatRoomResponse response = chatRoomService.updateRoomStatus(
+                chatRoomId, request.getStatus(), userDetails.getUserId(), userDetails.getRole());
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     /** 관리자: 전체 CS 문의 채팅방 목록 조회 (상태별 필터링) */
