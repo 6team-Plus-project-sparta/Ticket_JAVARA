@@ -71,8 +71,8 @@ public class ChatRoomService {
      */
     @Transactional
     public ChatRoomResponse updateRoomStatus(Long chatRoomId, ChatRoomStatus targetStatus, Long userId, String userRole) {
-        // 타입 안전한 권한 검증
-        AuthorizationUtil.requireAdmin(userRole);
+        // Spring Security 기반 권한 검증 (Controller의 @PreAuthorize와 이중 검증)
+        AuthorizationUtil.requireCurrentUserAdmin();
 
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.CHAT_ROOM_NOT_FOUND));
@@ -92,7 +92,8 @@ public class ChatRoomService {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.CHAT_ROOM_NOT_FOUND));
 
-        boolean isAdmin = AuthorizationUtil.isAdmin(userRole);
+        // Spring Security 기반 권한 검증 + 소유자 확인
+        boolean isAdmin = AuthorizationUtil.isCurrentUserAdmin();
         boolean isOwner = chatRoom.getUser().getUserId().equals(userId);
         if (!isAdmin && !isOwner) {
             throw new ForbiddenException(ErrorCode.CHAT_UNAUTHORIZED);
@@ -126,7 +127,7 @@ public class ChatRoomService {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.CHAT_ROOM_NOT_FOUND));
 
-        if (!AuthorizationUtil.isAdmin(userRole) && !chatRoom.getUser().getUserId().equals(userId)) {
+        if (!AuthorizationUtil.isCurrentUserAdmin() && !chatRoom.getUser().getUserId().equals(userId)) {
             throw new ForbiddenException(ErrorCode.CHAT_UNAUTHORIZED);
         }
 
@@ -171,8 +172,8 @@ public class ChatRoomService {
 
     @Transactional(readOnly = true)
     public Page<AdminChatRoomResponse> getAdminChatRooms(String status, Pageable pageable, String userRole) {
-        // 타입 안전한 권한 검증
-        AuthorizationUtil.requireAdmin(userRole);
+        // Spring Security 기반 권한 검증 (Controller의 @PreAuthorize와 이중 검증)
+        AuthorizationUtil.requireCurrentUserAdmin();
 
         ChatRoomStatus statusEnum = null;
         try {

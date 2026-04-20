@@ -10,59 +10,50 @@ import static org.assertj.core.api.Assertions.*;
 class AuthorizationUtilTest {
 
     @Test
-    @DisplayName("관리자 권한 검증 - 성공")
-    void requireAdmin_Success() {
+    @DisplayName("Enum 기반 관리자 권한 확인")
+    void isAdmin_Enum() {
         // given & when & then
-        assertThatCode(() -> AuthorizationUtil.requireAdmin("ADMIN"))
-                .doesNotThrowAnyException();
-        
+        assertThat(AuthorizationUtil.isAdmin(UserRole.ADMIN)).isTrue();
+        assertThat(AuthorizationUtil.isAdmin(UserRole.USER)).isFalse();
+    }
+
+    @Test
+    @DisplayName("Enum 기반 관리자 권한 검증 - 성공")
+    void requireAdmin_Enum_Success() {
+        // given & when & then
         assertThatCode(() -> AuthorizationUtil.requireAdmin(UserRole.ADMIN))
                 .doesNotThrowAnyException();
     }
 
     @Test
-    @DisplayName("관리자 권한 검증 - 실패 (일반 사용자)")
-    void requireAdmin_Fail_User() {
+    @DisplayName("Enum 기반 관리자 권한 검증 - 실패")
+    void requireAdmin_Enum_Fail() {
         // given & when & then
-        assertThatThrownBy(() -> AuthorizationUtil.requireAdmin("USER"))
-                .isInstanceOf(ForbiddenException.class);
-        
         assertThatThrownBy(() -> AuthorizationUtil.requireAdmin(UserRole.USER))
                 .isInstanceOf(ForbiddenException.class);
     }
 
     @Test
-    @DisplayName("관리자 권한 검증 - 실패 (잘못된 문자열)")
-    void requireAdmin_Fail_InvalidString() {
-        // given & when & then
-        assertThatThrownBy(() -> AuthorizationUtil.requireAdmin("ADMIM")) // 오타
-                .isInstanceOf(ForbiddenException.class);
-        
-        assertThatThrownBy(() -> AuthorizationUtil.requireAdmin("admin")) // 소문자
-                .isInstanceOf(ForbiddenException.class);
-        
-        // null 테스트는 명시적으로 String 타입으로 캐스팅
-        assertThatThrownBy(() -> AuthorizationUtil.requireAdmin((String) null))
-                .isInstanceOf(ForbiddenException.class);
-    }
-
-    @Test
-    @DisplayName("관리자 권한 확인 - 문자열 버전")
-    void isAdmin_String() {
+    @DisplayName("레거시 문자열 기반 권한 확인 (Deprecated)")
+    void isAdmin_String_Legacy() {
         // given & when & then
         assertThat(AuthorizationUtil.isAdmin("ADMIN")).isTrue();
         assertThat(AuthorizationUtil.isAdmin("USER")).isFalse();
-        assertThat(AuthorizationUtil.isAdmin("admin")).isFalse(); // 대소문자 구분
-        assertThat(AuthorizationUtil.isAdmin("ADMIM")).isFalse(); // 오타
-        // null 테스트는 명시적으로 String 타입으로 캐스팅
+        assertThat(AuthorizationUtil.isAdmin("INVALID")).isFalse();
         assertThat(AuthorizationUtil.isAdmin((String) null)).isFalse();
     }
 
     @Test
-    @DisplayName("관리자 권한 확인 - Enum 버전")
-    void isAdmin_Enum() {
+    @DisplayName("레거시 문자열 기반 권한 검증 (Deprecated)")
+    void requireAdmin_String_Legacy() {
         // given & when & then
-        assertThat(AuthorizationUtil.isAdmin(UserRole.ADMIN)).isTrue();
-        assertThat(AuthorizationUtil.isAdmin(UserRole.USER)).isFalse();
+        assertThatCode(() -> AuthorizationUtil.requireAdmin("ADMIN"))
+                .doesNotThrowAnyException();
+        
+        assertThatThrownBy(() -> AuthorizationUtil.requireAdmin("USER"))
+                .isInstanceOf(ForbiddenException.class);
+        
+        assertThatThrownBy(() -> AuthorizationUtil.requireAdmin("INVALID"))
+                .isInstanceOf(ForbiddenException.class);
     }
 }

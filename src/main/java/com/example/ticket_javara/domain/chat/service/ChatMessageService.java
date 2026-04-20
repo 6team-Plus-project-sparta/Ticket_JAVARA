@@ -44,7 +44,8 @@ public class ChatMessageService {
             throw new BusinessException(ErrorCode.CHAT_ROOM_ALREADY_CLOSED);
         }
 
-        SenderRole role = AuthorizationUtil.isAdmin(senderRoleParam) ? SenderRole.ADMIN : SenderRole.USER;
+        // Spring Security 기반 역할 판단 (타입 안전)
+        SenderRole role = AuthorizationUtil.isCurrentUserAdmin() ? SenderRole.ADMIN : SenderRole.USER;
 
         ChatMessage message = ChatMessage.builder()
                 .chatRoom(chatRoom)

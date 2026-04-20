@@ -1,5 +1,6 @@
 -- 채팅방 테이블에 종료 시간 필드 추가
 -- 피드백 반영: 데이터 영속성 확보를 위한 마이그레이션
+-- 더미데이터에 없어서 추가한 것. 배포시 삭제할것.
 
 ALTER TABLE chat_room 
 ADD COLUMN closed_at TIMESTAMP NULL COMMENT '채팅방 종료 시간';
