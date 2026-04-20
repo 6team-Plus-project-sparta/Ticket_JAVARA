@@ -19,10 +19,7 @@ import org.springframework.cache.CacheManager;
 import org.springframework.data.redis.connection.RedisConnection;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 @Slf4j
 @Service
@@ -72,20 +69,28 @@ public class SearchService {
     }
 
     public List<PopularKeywordResponseDto> getPopularKeywords() {
-        Set<ZSetOperations.TypedTuple<String>> typedTuples = stringRedisTemplate.opsForZSet().reverseRangeWithScores(POPULAR_KEYWORD_KEY, 0, 9);
-        List<PopularKeywordResponseDto> result = new ArrayList<>();
+        try {
+            Set<ZSetOperations.TypedTuple<String>> typedTuples = stringRedisTemplate.opsForZSet().reverseRangeWithScores(POPULAR_KEYWORD_KEY, 0, 9);
+            List<PopularKeywordResponseDto> result = new ArrayList<>();
 
-        if (typedTuples != null) {
-            int rank = 1;
-            for (ZSetOperations.TypedTuple<String> tuple : typedTuples) {
-                result.add(PopularKeywordResponseDto.builder()
-                        .rank(rank++)
-                        .keyword(tuple.getValue())
-                        .score(tuple.getScore())
-                        .build());
+            if (typedTuples != null) {
+                int rank = 1;
+                for (ZSetOperations.TypedTuple<String> tuple : typedTuples) {
+                    result.add(PopularKeywordResponseDto.builder()
+                            .rank(rank++)
+                            .keyword(tuple.getValue())
+                            .score(tuple.getScore())
+                            .build());
+                }
             }
+            return result;
+
+        } catch (Exception e) {
+            // SA 문서 FN-SRCH-04: Redis 장애 시 Graceful Degradation
+            // 빈 배열 반환 — 검색 기능에 영향 없음
+            log.warn("[SearchService] 인기 검색어 조회 실패 — 빈 배열 반환: {}", e.getMessage());
+            return Collections.emptyList();
         }
-        return result;
     }
 
     private Page<EventSummaryResponseDto> mapToSummary(Page<Event> events) {
