@@ -3,6 +3,7 @@ package com.example.ticket_javara.domain.chat.service;
 import com.example.ticket_javara.domain.chat.dto.AdminChatRoomResponse;
 import com.example.ticket_javara.domain.chat.dto.ChatHistoryResponse;
 import com.example.ticket_javara.domain.chat.dto.ChatMessageResponse;
+import com.example.ticket_javara.domain.chat.dto.ChatRoomCloseResponse;
 import com.example.ticket_javara.domain.chat.dto.ChatRoomResponse;
 import com.example.ticket_javara.domain.chat.entity.ChatMessage;
 import com.example.ticket_javara.domain.chat.entity.ChatRoom;
@@ -23,6 +24,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -78,6 +80,40 @@ public class ChatRoomService {
 
         chatRoom.updateStatus(targetStatus); // 엔티티 내부에서 전이 유효성 검증
         return ChatRoomResponse.of(chatRoom, false);
+    }
+
+    /**
+     * 고객(또는 ADMIN): 채팅방 종료
+     * - WAITING 상태면 IN_PROGRESS를 거쳐 COMPLETED로 전이 (상태머신 규칙 유지)
+     * - IN_PROGRESS 상태면 COMPLETED로 전이
+     * - COMPLETED면 에러
+     */
+    @Transactional
+    public ChatRoomCloseResponse closeChatRoom(Long chatRoomId, Long userId, String userRole) {
+        ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
+                .orElseThrow(() -> new NotFoundException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+
+        boolean isAdmin = "ADMIN".equals(userRole);
+        boolean isOwner = chatRoom.getUser().getUserId().equals(userId);
+        if (!isAdmin && !isOwner) {
+            throw new ForbiddenException(ErrorCode.CHAT_UNAUTHORIZED);
+        }
+
+        if (chatRoom.getStatus() == ChatRoomStatus.COMPLETED) {
+            throw new BusinessException(ErrorCode.CHAT_ROOM_ALREADY_CLOSED);
+        }
+
+        if (chatRoom.getStatus() == ChatRoomStatus.WAITING) {
+            chatRoom.updateStatus(ChatRoomStatus.IN_PROGRESS);
+        }
+        chatRoom.updateStatus(ChatRoomStatus.COMPLETED);
+
+        return ChatRoomCloseResponse.builder()
+                .message("채팅방이 종료되었습니다.")
+                .chatRoomId(chatRoomId)
+                .chatRoom(ChatRoomResponse.of(chatRoom, false))
+                .closedAt(LocalDateTime.now())
+                .build();
     }
 
     @Transactional(readOnly = true)
