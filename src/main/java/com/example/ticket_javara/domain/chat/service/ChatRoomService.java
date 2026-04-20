@@ -3,6 +3,7 @@ package com.example.ticket_javara.domain.chat.service;
 import com.example.ticket_javara.domain.chat.dto.AdminChatRoomResponse;
 import com.example.ticket_javara.domain.chat.dto.ChatHistoryResponse;
 import com.example.ticket_javara.domain.chat.dto.ChatMessageResponse;
+import com.example.ticket_javara.domain.chat.dto.ChatRoomCloseResponse;
 import com.example.ticket_javara.domain.chat.dto.ChatRoomResponse;
 import com.example.ticket_javara.domain.chat.entity.ChatMessage;
 import com.example.ticket_javara.domain.chat.entity.ChatRoom;
@@ -16,6 +17,7 @@ import com.example.ticket_javara.global.exception.ErrorCode;
 import com.example.ticket_javara.global.exception.ForbiddenException;
 import com.example.ticket_javara.global.exception.NotFoundException;
 import com.example.ticket_javara.global.lock.DistributedLockProvider;
+import com.example.ticket_javara.global.util.AuthorizationUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -69,15 +71,49 @@ public class ChatRoomService {
      */
     @Transactional
     public ChatRoomResponse updateRoomStatus(Long chatRoomId, ChatRoomStatus targetStatus, Long userId, String userRole) {
-        if (!"ADMIN".equals(userRole)) {
-            throw new ForbiddenException(ErrorCode.ADMIN_ONLY);
-        }
+        // Spring Security 기반 권한 검증 (Controller의 @PreAuthorize와 이중 검증)
+        AuthorizationUtil.requireCurrentUserAdmin();
 
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.CHAT_ROOM_NOT_FOUND));
 
-        chatRoom.updateStatus(targetStatus); // 엔티티 내부에서 전이 유효성 검증
+        chatRoom.updateStatus(targetStatus); // 엔티티 내부에서 전이 유효성 검증 + closedAt 자동 설정
         return ChatRoomResponse.of(chatRoom, false);
+    }
+
+    /**
+     * 고객(또는 ADMIN): 채팅방 종료
+     * - WAITING 상태면 IN_PROGRESS를 거쳐 COMPLETED로 전이 (상태머신 규칙 유지)
+     * - IN_PROGRESS 상태면 COMPLETED로 전이
+     * - COMPLETED면 에러
+     */
+    @Transactional
+    public ChatRoomCloseResponse closeChatRoom(Long chatRoomId, Long userId, String userRole) {
+        ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
+                .orElseThrow(() -> new NotFoundException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+
+        // Spring Security 기반 권한 검증 + 소유자 확인
+        boolean isAdmin = AuthorizationUtil.isCurrentUserAdmin();
+        boolean isOwner = chatRoom.getUser().getUserId().equals(userId);
+        if (!isAdmin && !isOwner) {
+            throw new ForbiddenException(ErrorCode.CHAT_UNAUTHORIZED);
+        }
+
+        if (chatRoom.getStatus() == ChatRoomStatus.COMPLETED) {
+            throw new BusinessException(ErrorCode.CHAT_ROOM_ALREADY_CLOSED);
+        }
+
+        if (chatRoom.getStatus() == ChatRoomStatus.WAITING) {
+            chatRoom.updateStatus(ChatRoomStatus.IN_PROGRESS);
+        }
+        chatRoom.updateStatus(ChatRoomStatus.COMPLETED); // closedAt 자동 설정됨
+
+        return ChatRoomCloseResponse.builder()
+                .message("채팅방이 종료되었습니다.")
+                .chatRoomId(chatRoomId)
+                .chatRoom(ChatRoomResponse.of(chatRoom, false))
+                .closedAt(chatRoom.getClosedAt()) // 엔티티에서 실제 저장된 시간 사용
+                .build();
     }
 
     @Transactional(readOnly = true)
@@ -91,7 +127,7 @@ public class ChatRoomService {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.CHAT_ROOM_NOT_FOUND));
 
-        if (!"ADMIN".equals(userRole) && !chatRoom.getUser().getUserId().equals(userId)) {
+        if (!AuthorizationUtil.isCurrentUserAdmin() && !chatRoom.getUser().getUserId().equals(userId)) {
             throw new ForbiddenException(ErrorCode.CHAT_UNAUTHORIZED);
         }
 
@@ -113,7 +149,7 @@ public class ChatRoomService {
 
         List<ChatMessageResponse> messageResponses = messages.stream()
                 .map(msg -> {
-                    String nickname = "ADMIN".equals(msg.getSenderRole().name())
+                    String nickname = AuthorizationUtil.isAdmin(msg.getSenderRole().name())
                             ? "TicketJavara CS팀"
                             : "SYSTEM".equals(msg.getSenderRole().name())
                             ? "시스템"
@@ -136,9 +172,8 @@ public class ChatRoomService {
 
     @Transactional(readOnly = true)
     public Page<AdminChatRoomResponse> getAdminChatRooms(String status, Pageable pageable, String userRole) {
-        if (!"ADMIN".equals(userRole)) {
-            throw new ForbiddenException(ErrorCode.ADMIN_ONLY);
-        }
+        // Spring Security 기반 권한 검증 (Controller의 @PreAuthorize와 이중 검증)
+        AuthorizationUtil.requireCurrentUserAdmin();
 
         ChatRoomStatus statusEnum = null;
         try {

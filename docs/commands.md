@@ -55,3 +55,13 @@ FLUSHALL
 
 ### Redis 접속 및 UTF-8 -> 한글 전환
 redis-cli -p 6379 --no-auth-warning --resp2 --raw
+
+
+## 채팅 조회 에러(enum변경으로 테이블 초기화 필요)
+#### 외래키 연동 일시 중단 
+SET FOREIGN_KEY_CHECKS = 0;
+#### 테이블 초기화(꼭 메세지 먼저 초기화해야함)
+TRUNCATE TABLE chat_message;
+TRUNCATE TABLE chat_room;
+#### 외래키 연동 재개
+SET FOREIGN_KEY_CHECKS = 1;

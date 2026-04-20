@@ -10,6 +10,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 /**
  * CHAT_ROOM 테이블 엔티티 (도전 기능)
  * ERD v7.0: chat_room_id, user_id FK, status, created_at, updated_at
@@ -37,6 +39,9 @@ public class ChatRoom extends BaseTimeEntity {
     @Column(nullable = false, length = 20)
     private ChatRoomStatus status;
 
+    @Column(name = "closed_at")
+    private LocalDateTime closedAt;
+
     @Builder
     public ChatRoom(User user) {
         this.user = user;
@@ -52,6 +57,11 @@ public class ChatRoom extends BaseTimeEntity {
             throw new BusinessException(ErrorCode.INVALID_CHAT_STATUS_TRANSITION);
         }
         this.status = newStatus;
+        
+        // COMPLETED 상태로 전이 시 종료 시간 기록
+        if (newStatus == ChatRoomStatus.COMPLETED) {
+            this.closedAt = LocalDateTime.now();
+        }
     }
 
     private boolean isValidTransition(ChatRoomStatus current, ChatRoomStatus next) {

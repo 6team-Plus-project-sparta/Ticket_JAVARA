@@ -2,6 +2,7 @@ package com.example.ticket_javara.domain.chat.controller;
 
 import com.example.ticket_javara.domain.chat.dto.AdminChatRoomResponse;
 import com.example.ticket_javara.domain.chat.dto.ChatHistoryResponse;
+import com.example.ticket_javara.domain.chat.dto.ChatRoomCloseResponse;
 import com.example.ticket_javara.domain.chat.dto.ChatRoomResponse;
 import com.example.ticket_javara.domain.chat.dto.UpdateChatRoomStatusRequest;
 import com.example.ticket_javara.domain.chat.service.ChatRoomService;
@@ -47,6 +48,17 @@ public class ChatRoomController {
         ChatHistoryResponse response = chatRoomService.getChatHistory(
                 chatRoomId, cursor, afterId, size,
                 userDetails.getUserId(), userDetails.getRole());
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /** 고객: 채팅방 종료 (COMPLETED 전이) */
+    @PatchMapping("/chat/rooms/{chatRoomId}/close")
+    public ResponseEntity<ApiResponse<ChatRoomCloseResponse>> closeChatRoom(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long chatRoomId) {
+
+        ChatRoomCloseResponse response = chatRoomService.closeChatRoom(
+                chatRoomId, userDetails.getUserId(), userDetails.getRole());
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
