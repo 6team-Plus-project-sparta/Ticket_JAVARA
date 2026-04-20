@@ -53,6 +53,6 @@ public class ChatMessage {
     }
 
     public enum SenderRole {
-        USER, ADMIN
+        USER, ADMIN, SYSTEM
     }
 }

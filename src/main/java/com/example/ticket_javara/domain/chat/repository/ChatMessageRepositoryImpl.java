@@ -30,6 +30,26 @@ public class ChatMessageRepositoryImpl implements ChatMessageRepositoryCustom {
                 .fetch();
     }
 
+    /**
+     * 재연결 복구: afterId 이후 메시지를 오름차순으로 반환
+     * 클라이언트가 마지막으로 받은 messageId를 기준으로 누락분을 조회
+     */
+    @Override
+    public List<ChatMessage> getMessagesAfter(Long chatRoomId, Long afterId) {
+        QChatMessage chatMessage = QChatMessage.chatMessage;
+
+        return queryFactory
+                .selectFrom(chatMessage)
+                .join(chatMessage.chatRoom).fetchJoin()
+                .join(chatMessage.chatRoom.user).fetchJoin()
+                .where(
+                        chatMessage.chatRoom.chatRoomId.eq(chatRoomId),
+                        chatMessage.chatMessageId.gt(afterId)
+                )
+                .orderBy(chatMessage.chatMessageId.asc())
+                .fetch();
+    }
+
     @Override
     public List<ChatMessage> getLatestMessagesByRoomIds(List<Long> chatRoomIds) {
         if (chatRoomIds.isEmpty()) {
