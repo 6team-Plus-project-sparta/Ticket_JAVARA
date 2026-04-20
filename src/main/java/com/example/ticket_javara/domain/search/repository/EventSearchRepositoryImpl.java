@@ -3,6 +3,7 @@ package com.example.ticket_javara.domain.search.repository;
 import com.example.ticket_javara.domain.event.entity.Event;
 import com.example.ticket_javara.domain.event.entity.QEvent;
 import com.example.ticket_javara.domain.event.entity.QSection;
+import com.example.ticket_javara.domain.event.entity.QVenue;
 import com.example.ticket_javara.domain.search.dto.request.SearchRequestDto;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.jpa.JPAExpressions;
@@ -24,6 +25,8 @@ public class EventSearchRepositoryImpl implements EventSearchRepositoryCustom {
     @Override
     public Page<Event> searchEvents(SearchRequestDto condition, Pageable pageable) {
         QEvent event = QEvent.event;
+        QVenue venue = QVenue.venue;
+        QSection section = QSection.section;
         BooleanBuilder builder = new BooleanBuilder();
 
         if (condition.getKeyword() != null && !condition.getKeyword().trim().isEmpty()) {
@@ -43,7 +46,6 @@ public class EventSearchRepositoryImpl implements EventSearchRepositoryCustom {
         }
 
         if (condition.getMinPrice() != null || condition.getMaxPrice() != null) {
-            QSection section = QSection.section;
             BooleanBuilder priceBuilder = new BooleanBuilder();
             priceBuilder.and(section.event.eq(event));
             
@@ -61,9 +63,10 @@ public class EventSearchRepositoryImpl implements EventSearchRepositoryCustom {
         }
 
         JPAQuery<Event> query = queryFactory.selectFrom(event)
+                .join(event.venue, venue).fetchJoin()//N + 1방지
                 .where(builder);
 
-        pageable.getSort().stream().forEach(order -> {
+        pageable.getSort().forEach(order -> {
             if (order.getProperty().equals("eventDate")) {
                 if (order.isAscending()) {
                     query.orderBy(event.eventDate.asc());

@@ -11,11 +11,10 @@ import java.time.LocalDateTime;
 @Getter
 @Builder
 @AllArgsConstructor
-@NoArgsConstructor
 public class EventSummaryResponseDto {
     private Long eventId;
     private String title;
-    private EventCategory category;
+    private EventCategory category; // CONCERT / MUSICAL / THEATER / SPORTS
     private String venueName;
     private LocalDateTime eventDate;
     private Integer minPrice;
