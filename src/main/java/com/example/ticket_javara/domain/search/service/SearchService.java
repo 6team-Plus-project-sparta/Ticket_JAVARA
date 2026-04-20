@@ -41,6 +41,8 @@ public class SearchService {
     public Page<EventSummaryResponseDto> searchEventsV1(SearchRequestDto requestDto, Pageable pageable) {
         long startTime = System.currentTimeMillis();
 
+        incrementSearchKeyword(requestDto.getKeyword());
+
         Page<Event> events = eventSearchRepository.searchEvents(requestDto, pageable);
 
         Page<EventSummaryResponseDto> result = mapToSummary(events);

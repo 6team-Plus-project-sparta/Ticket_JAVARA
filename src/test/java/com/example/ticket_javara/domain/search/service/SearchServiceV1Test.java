@@ -48,9 +48,9 @@ import static org.mockito.Mockito.*;
  * - CacheManager           : isCacheHit() 캐시 히트 여부 확인
  *
  * SRCH-S-07, 08 설계 결정:
- * - searchEventsV1() 내부에 incrementSearchKeyword() 호출이 없음
- * - 컨트롤러에서 searchEventsV1() → incrementSearchKeyword() 순서로 별도 호출하는 구조
- * - 따라서 서비스 단위 테스트에서는 incrementSearchKeyword()를 직접 호출해서 검증
+ * - SA 문서(FN-SRCH-01) 기준: 검색 API 호출 시 서비스 내부에서 ZINCRBY 함께 처리
+ * - searchEventsV1() 내부에서 incrementSearchKeyword()를 직접 호출하는 구조
+ * - 따라서 searchEventsV1() 호출만으로 ZINCRBY 동작을 함께 검증
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("SearchService v1 단위 테스트 — SRCH-S-01 ~ 08")
@@ -341,21 +341,23 @@ class SearchServiceV1Test {
 
         /**
          * SRCH-S-07
-         * keyword 입력 시 Redis ZINCRBY 1회 호출 확인
-         *
-         * searchEventsV1()이 아닌 incrementSearchKeyword()를 직접 테스트하는 이유:
-         * SearchService.searchEventsV1() 내부에 incrementSearchKeyword() 호출이 없고
-         * 컨트롤러에서 searchEventsV1() 호출 후 incrementSearchKeyword()를 별도 호출하는 구조이기 때문
-         * → 서비스 레이어 단위 테스트에서는 incrementSearchKeyword() 자체의 동작을 검증
+         * searchEventsV1() 호출 시 내부에서 incrementSearchKeyword()가 함께 실행됨
+         * SA 문서(FN-SRCH-01) 처리 로직 1번 기준:
+         * 검색어가 존재하면 Redis ZSet ZINCRBY search-keywords {keyword} 1
          */
         @Test
         @DisplayName("SRCH-S-07: keyword 입력 시 Redis ZINCRBY가 1회 호출된다")
         void incrementSearchKeyword_withKeyword_zincrbyCalledOnce() {
             // given
-            String keyword = "세븐틴";
+            SearchRequestDto request = SearchRequestDto.builder()
+                    .keyword("세븐틴")
+                    .build();
 
-            // when
-            searchService.incrementSearchKeyword(keyword);
+            given(eventSearchRepository.searchEvents(any(), any())).willReturn(samplePage());
+            given(seatRepository.countAvailableSeatsByEventId(any())).willReturn(200L);
+
+            // when — searchEventsV1() 내부에서 ZINCRBY가 함께 실행됨
+            searchService.searchEventsV1(request, PageRequest.of(0, 20));
 
             // then
             verify(zSetOperations, times(1))
@@ -370,8 +372,15 @@ class SearchServiceV1Test {
         @Test
         @DisplayName("SRCH-S-08: keyword가 null이면 Redis ZINCRBY가 호출되지 않는다")
         void incrementSearchKeyword_withNullKeyword_zincrbyNotCalled() {
+            // given
+            SearchRequestDto request = SearchRequestDto.builder()
+                    .build();  // keyword null
+
+            given(eventSearchRepository.searchEvents(any(), any())).willReturn(samplePage());
+            given(seatRepository.countAvailableSeatsByEventId(any())).willReturn(200L);
+
             // when
-            searchService.incrementSearchKeyword(null);
+            searchService.searchEventsV1(request, PageRequest.of(0, 20));
 
             // then
             verify(zSetOperations, never())
@@ -386,8 +395,16 @@ class SearchServiceV1Test {
         @Test
         @DisplayName("SRCH-S-08 확장: keyword가 빈 문자열이면 Redis ZINCRBY가 호출되지 않는다")
         void incrementSearchKeyword_withBlankKeyword_zincrbyNotCalled() {
+            // given
+            SearchRequestDto request = SearchRequestDto.builder()
+                    .keyword("   ")  // 공백 keyword
+                    .build();
+
+            given(eventSearchRepository.searchEvents(any(), any())).willReturn(samplePage());
+            given(seatRepository.countAvailableSeatsByEventId(any())).willReturn(200L);
+
             // when
-            searchService.incrementSearchKeyword("   ");
+            searchService.searchEventsV1(request, PageRequest.of(0, 20));
 
             // then
             verify(zSetOperations, never())

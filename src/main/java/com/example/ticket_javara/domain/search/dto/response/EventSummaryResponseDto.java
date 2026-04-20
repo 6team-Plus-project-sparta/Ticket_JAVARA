@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 public class EventSummaryResponseDto {
     private Long eventId;
     private String title;
-    private EventCategory category; // CONCERT / MUSICAL / THEATER / SPORTS
+    private EventCategory category;
     private String venueName;
     private LocalDateTime eventDate;
     private Integer minPrice;
