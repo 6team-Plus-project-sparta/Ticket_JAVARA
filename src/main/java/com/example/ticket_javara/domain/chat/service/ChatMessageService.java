@@ -10,6 +10,7 @@ import com.example.ticket_javara.domain.chat.repository.ChatRoomRepository;
 import com.example.ticket_javara.global.exception.BusinessException;
 import com.example.ticket_javara.global.exception.ErrorCode;
 import com.example.ticket_javara.global.exception.NotFoundException;
+import com.example.ticket_javara.global.util.AuthorizationUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -43,7 +44,7 @@ public class ChatMessageService {
             throw new BusinessException(ErrorCode.CHAT_ROOM_ALREADY_CLOSED);
         }
 
-        SenderRole role = "ADMIN".equals(senderRoleParam) ? SenderRole.ADMIN : SenderRole.USER;
+        SenderRole role = AuthorizationUtil.isAdmin(senderRoleParam) ? SenderRole.ADMIN : SenderRole.USER;
 
         ChatMessage message = ChatMessage.builder()
                 .chatRoom(chatRoom)

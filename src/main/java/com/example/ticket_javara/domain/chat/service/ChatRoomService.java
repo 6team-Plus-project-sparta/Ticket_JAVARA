@@ -17,6 +17,7 @@ import com.example.ticket_javara.global.exception.ErrorCode;
 import com.example.ticket_javara.global.exception.ForbiddenException;
 import com.example.ticket_javara.global.exception.NotFoundException;
 import com.example.ticket_javara.global.lock.DistributedLockProvider;
+import com.example.ticket_javara.global.util.AuthorizationUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -24,7 +25,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -71,14 +71,13 @@ public class ChatRoomService {
      */
     @Transactional
     public ChatRoomResponse updateRoomStatus(Long chatRoomId, ChatRoomStatus targetStatus, Long userId, String userRole) {
-        if (!"ADMIN".equals(userRole)) {
-            throw new ForbiddenException(ErrorCode.ADMIN_ONLY);
-        }
+        // 타입 안전한 권한 검증
+        AuthorizationUtil.requireAdmin(userRole);
 
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.CHAT_ROOM_NOT_FOUND));
 
-        chatRoom.updateStatus(targetStatus); // 엔티티 내부에서 전이 유효성 검증
+        chatRoom.updateStatus(targetStatus); // 엔티티 내부에서 전이 유효성 검증 + closedAt 자동 설정
         return ChatRoomResponse.of(chatRoom, false);
     }
 
@@ -93,7 +92,7 @@ public class ChatRoomService {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.CHAT_ROOM_NOT_FOUND));
 
-        boolean isAdmin = "ADMIN".equals(userRole);
+        boolean isAdmin = AuthorizationUtil.isAdmin(userRole);
         boolean isOwner = chatRoom.getUser().getUserId().equals(userId);
         if (!isAdmin && !isOwner) {
             throw new ForbiddenException(ErrorCode.CHAT_UNAUTHORIZED);
@@ -106,13 +105,13 @@ public class ChatRoomService {
         if (chatRoom.getStatus() == ChatRoomStatus.WAITING) {
             chatRoom.updateStatus(ChatRoomStatus.IN_PROGRESS);
         }
-        chatRoom.updateStatus(ChatRoomStatus.COMPLETED);
+        chatRoom.updateStatus(ChatRoomStatus.COMPLETED); // closedAt 자동 설정됨
 
         return ChatRoomCloseResponse.builder()
                 .message("채팅방이 종료되었습니다.")
                 .chatRoomId(chatRoomId)
                 .chatRoom(ChatRoomResponse.of(chatRoom, false))
-                .closedAt(LocalDateTime.now())
+                .closedAt(chatRoom.getClosedAt()) // 엔티티에서 실제 저장된 시간 사용
                 .build();
     }
 
@@ -127,7 +126,7 @@ public class ChatRoomService {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.CHAT_ROOM_NOT_FOUND));
 
-        if (!"ADMIN".equals(userRole) && !chatRoom.getUser().getUserId().equals(userId)) {
+        if (!AuthorizationUtil.isAdmin(userRole) && !chatRoom.getUser().getUserId().equals(userId)) {
             throw new ForbiddenException(ErrorCode.CHAT_UNAUTHORIZED);
         }
 
@@ -149,7 +148,7 @@ public class ChatRoomService {
 
         List<ChatMessageResponse> messageResponses = messages.stream()
                 .map(msg -> {
-                    String nickname = "ADMIN".equals(msg.getSenderRole().name())
+                    String nickname = AuthorizationUtil.isAdmin(msg.getSenderRole().name())
                             ? "TicketJavara CS팀"
                             : "SYSTEM".equals(msg.getSenderRole().name())
                             ? "시스템"
@@ -172,9 +171,8 @@ public class ChatRoomService {
 
     @Transactional(readOnly = true)
     public Page<AdminChatRoomResponse> getAdminChatRooms(String status, Pageable pageable, String userRole) {
-        if (!"ADMIN".equals(userRole)) {
-            throw new ForbiddenException(ErrorCode.ADMIN_ONLY);
-        }
+        // 타입 안전한 권한 검증
+        AuthorizationUtil.requireAdmin(userRole);
 
         ChatRoomStatus statusEnum = null;
         try {

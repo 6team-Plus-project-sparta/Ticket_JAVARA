@@ -15,13 +15,15 @@ public class ChatRoomResponse {
     private Long chatRoomId;
     private ChatRoomStatus status;
     private LocalDateTime createdAt;
+    private LocalDateTime closedAt;
     private boolean isNew;
 
     @Builder
-    public ChatRoomResponse(Long chatRoomId, ChatRoomStatus status, LocalDateTime createdAt, boolean isNew) {
+    public ChatRoomResponse(Long chatRoomId, ChatRoomStatus status, LocalDateTime createdAt, LocalDateTime closedAt, boolean isNew) {
         this.chatRoomId = chatRoomId;
         this.status = status;
         this.createdAt = createdAt;
+        this.closedAt = closedAt;
         this.isNew = isNew;
     }
 
@@ -30,6 +32,7 @@ public class ChatRoomResponse {
                 .chatRoomId(chatRoom.getChatRoomId())
                 .status(chatRoom.getStatus())
                 .createdAt(chatRoom.getCreatedAt())
+                .closedAt(chatRoom.getClosedAt())
                 .isNew(isNew)
                 .build();
     }
