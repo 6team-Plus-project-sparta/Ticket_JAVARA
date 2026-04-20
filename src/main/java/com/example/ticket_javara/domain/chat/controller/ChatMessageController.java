@@ -14,7 +14,7 @@ import jakarta.validation.Valid;
 
 import java.security.Principal;
 import java.util.Map;
-import java.util.Objects;
+import com.example.ticket_javara.domain.chat.dto.ChatRoomJoinRequest;
 import com.example.ticket_javara.global.security.CustomUserDetails;
 
 @Slf4j
@@ -48,7 +48,7 @@ public class ChatMessageController {
      * 반복 DB 조회 없이 세션에서 꺼내 사용한다.
      */
     @MessageMapping("/chat/join")
-    public void joinRoom(@Payload Map<String, Long> payload,
+    public void joinRoom(@Payload @Valid ChatRoomJoinRequest payload,
                          Principal principal,
                          SimpMessageHeaderAccessor headerAccessor) {
         if (principal == null) {
@@ -56,15 +56,15 @@ public class ChatMessageController {
             return;
         }
 
-        Long chatRoomId = payload.get("chatRoomId");
-        if (chatRoomId == null) {
-            log.warn("[STOMP] chatRoomId 누락 - 입장 메시지 생략");
+        Long chatRoomId = payload.getChatRoomId();
+
+        Map<String, Object> sessionAttrs = headerAccessor.getSessionAttributes();
+        if (sessionAttrs == null) {
+            log.error("[STOMP] WebSocket 세션이 초기화되지 않은 비정상적 요청");
             return;
         }
 
         CustomUserDetails userDetails = (CustomUserDetails) ((UsernamePasswordAuthenticationToken) principal).getPrincipal();
-
-        Map<String, Object> sessionAttrs = Objects.requireNonNull(headerAccessor.getSessionAttributes());
 
         // ★ StompHandler.CONNECT 시 세션에 저장된 nickname 사용 (DB 재조회 없음)
         String nickname = (String) sessionAttrs.getOrDefault("stomp_nickname", "사용자");

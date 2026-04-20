@@ -66,12 +66,9 @@ public class ChatRoomService {
     /**
      * 관리자가 채팅방 상태를 전이 (WAITING → IN_PROGRESS → COMPLETED)
      * 역방향 전이 시 BusinessException(INVALID_CHAT_STATUS_TRANSITION) 발생.
-     *
-     * ★ 항목 1 개선: 엔티티 노출 제거 → Service 계층이 ChatRoomResponse DTO를 직접 반환.
-     * Controller는 HTTP 통신 책임만 진다.
      */
     @Transactional
-    public ChatRoomResponse updateRoomStatus(Long chatRoomId, String targetStatusStr, Long userId, String userRole) {
+    public ChatRoomResponse updateRoomStatus(Long chatRoomId, ChatRoomStatus targetStatus, Long userId, String userRole) {
         if (!"ADMIN".equals(userRole)) {
             throw new ForbiddenException(ErrorCode.ADMIN_ONLY);
         }
@@ -79,19 +76,16 @@ public class ChatRoomService {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.CHAT_ROOM_NOT_FOUND));
 
-        ChatRoomStatus targetStatus;
-        try {
-            targetStatus = ChatRoomStatus.valueOf(targetStatusStr.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new BusinessException(ErrorCode.INVALID_REQUEST);
-        }
-
         chatRoom.updateStatus(targetStatus); // 엔티티 내부에서 전이 유효성 검증
-        return ChatRoomResponse.of(chatRoom, false); // DTO 변환 책임을 Service로
+        return ChatRoomResponse.of(chatRoom, false);
     }
 
     @Transactional(readOnly = true)
     public ChatHistoryResponse getChatHistory(Long chatRoomId, Long cursor, Long afterId, int size, Long userId, String userRole) {
+        if (cursor != null && afterId != null) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST);
+        }
+
         int limitedSize = Math.min(size, 100);
 
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
