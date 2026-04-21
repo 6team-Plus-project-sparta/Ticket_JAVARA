@@ -61,6 +61,7 @@ jobs:
             IMAGE_TAG=${{ github.sha }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
             JWT_SECRET=${{ secrets.JWT_SECRET }}
+            TOSS_SECRET_KEY=${{ secrets.TOSS_SECRET_KEY }}
             EOF
 
             # 새 앱 이미지 Pull
