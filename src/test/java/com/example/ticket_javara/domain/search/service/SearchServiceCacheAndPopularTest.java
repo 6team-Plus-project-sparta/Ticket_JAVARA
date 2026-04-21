@@ -1,5 +1,6 @@
 package com.example.ticket_javara.domain.search.service;
 
+import com.example.ticket_javara.domain.chat.service.RedisChatSubscriber;
 import com.example.ticket_javara.domain.event.entity.*;
 import com.example.ticket_javara.domain.event.repository.SeatRepository;
 import com.example.ticket_javara.domain.search.dto.request.SearchRequestDto;
@@ -14,9 +15,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.cache.CacheManager;
 import org.springframework.data.domain.*;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.data.redis.listener.RedisMessageListenerContainer;
+import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -44,6 +46,11 @@ import static org.mockito.Mockito.*;
 @SpringBootTest
 @ActiveProfiles("test")
 @DisplayName("SearchService v2 테스트 — SRCH-S-09 ~ 17")
+@MockitoBean(types = {
+        RedisChatSubscriber.class,
+        MessageListenerAdapter.class,
+        RedisMessageListenerContainer.class
+})
 class SearchServiceCacheAndPopularTest {
 
     @Autowired

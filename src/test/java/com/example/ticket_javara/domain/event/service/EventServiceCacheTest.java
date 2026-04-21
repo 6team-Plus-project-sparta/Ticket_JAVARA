@@ -2,6 +2,7 @@ package com.example.ticket_javara.domain.event.service;
 
 import com.example.ticket_javara.domain.booking.facade.HoldLockFacade;
 import com.example.ticket_javara.domain.booking.service.HoldService;
+import com.example.ticket_javara.domain.chat.service.RedisChatSubscriber;
 import com.example.ticket_javara.domain.event.entity.*;
 import com.example.ticket_javara.domain.event.repository.*;
 import com.example.ticket_javara.domain.user.entity.User;
@@ -19,6 +20,8 @@ import org.springframework.cache.CacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.listener.RedisMessageListenerContainer;
+import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -35,7 +38,12 @@ import static org.mockito.Mockito.*;
 @ActiveProfiles("test")
 @TestPropertySource(properties = {
         "cache.provider=caffeine",
-        "spring.main.allow-bean-definition-overriding=true"  // ✅
+        "spring.main.allow-bean-definition-overriding=true"
+})
+@MockitoBean(types = {
+        RedisChatSubscriber.class,
+        MessageListenerAdapter.class,
+        RedisMessageListenerContainer.class
 })
 class EventServiceCacheTest {
 
