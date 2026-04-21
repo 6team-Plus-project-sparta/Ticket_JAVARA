@@ -18,7 +18,6 @@ import com.example.ticket_javara.global.exception.InvalidRequestException;
 import com.example.ticket_javara.global.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -46,6 +45,7 @@ public class EventService {
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final RedisTemplate<String, String> redisTemplate;
+    private final EventDetailCacheService eventDetailCacheService; // BUG-01: 캐시 전용 Bean 분리
 
     @Transactional
     @CacheEvict(value = "event-detail", allEntries = true)
@@ -125,40 +125,42 @@ public class EventService {
                 .build();
     }
 
-    @Cacheable(value = "event-detail", key = "#eventId")
+    /**
+     * 이벤트 상세 조회 (BUG-01 수정)
+     *
+     * ① 이벤트 기본 정보: EventDetailCacheService.getCachedEventDetail() — TTL 10분 캐시 활용
+     * ② 잔여 좌석 수   : 캐시 밖에서 실시간 조회 후 새 SectionDetailDto로 교체
+     *
+     * self-invocation 방지: @Cacheable이 붙은 메서드를 별도 Bean(EventDetailCacheService)에 위임
+     */
     public EventDetailResponseDto getEventDetail(Long eventId) {
-        Event event = eventRepository.findByIdWithVenueAndSections(eventId)
-                .orElseThrow(() -> new NotFoundException(ErrorCode.EVENT_NOT_FOUND));
+        // ① 기본 정보 캐시 조회 (remainingSeats = 0L placeholder)
+        EventDetailResponseDto cached = eventDetailCacheService.getCachedEventDetail(eventId);
 
-        List<EventDetailResponseDto.SectionDetailDto> sectionDtos = new ArrayList<>();
+        // ② 섹션별 잔여 좌석 수 실시간 조회 → 새 SectionDetailDto 생성(toBuilder 미지원)
+        List<EventDetailResponseDto.SectionDetailDto> sectionsWithSeats =
+                cached.getSections().stream()
+                        .map(s -> EventDetailResponseDto.SectionDetailDto.builder()
+                                .sectionId(s.getSectionId())
+                                .sectionName(s.getSectionName())
+                                .price(s.getPrice())
+                                .totalSeats(s.getTotalSeats())
+                                .remainingSeats(seatRepository.countAvailableSeatsBySectionId(s.getSectionId()))
+                                .build())
+                        .collect(Collectors.toList());
 
-        for (Section section : event.getSections()) {
-            long remainingSeats = seatRepository.countAvailableSeatsBySectionId(section.getSectionId());
-
-            sectionDtos.add(EventDetailResponseDto.SectionDetailDto.builder()
-                    .sectionId(section.getSectionId())
-                    .sectionName(section.getSectionName())
-                    .price(section.getPrice())
-                    .totalSeats(section.getTotalSeats())
-                    .remainingSeats(remainingSeats)
-                    .build());
-        }
-
+        // ③ 기본 정보 + 실시간 잔여 좌석 수 조합
         return EventDetailResponseDto.builder()
-                .eventId(event.getEventId())
-                .title(event.getTitle())
-                .category(event.getCategory())
-                .venue(EventDetailResponseDto.VenueDto.builder()
-                        .venueId(event.getVenue().getVenueId())
-                        .name(event.getVenue().getName())
-                        .address(event.getVenue().getAddress())
-                        .build())
-                .eventDate(event.getEventDate())
-                .saleStartAt(event.getSaleStartAt())
-                .saleEndAt(event.getSaleEndAt())
-                .description(event.getDescription())
-                .thumbnailUrl(event.getThumbnailUrl())
-                .sections(sectionDtos)
+                .eventId(cached.getEventId())
+                .title(cached.getTitle())
+                .category(cached.getCategory())
+                .venue(cached.getVenue())
+                .eventDate(cached.getEventDate())
+                .saleStartAt(cached.getSaleStartAt())
+                .saleEndAt(cached.getSaleEndAt())
+                .description(cached.getDescription())
+                .thumbnailUrl(cached.getThumbnailUrl())
+                .sections(sectionsWithSeats)
                 .build();
     }
 
