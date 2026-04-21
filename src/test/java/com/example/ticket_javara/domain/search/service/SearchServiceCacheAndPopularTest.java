@@ -59,9 +59,6 @@ class SearchServiceCacheAndPopularTest {
     private SeatRepository seatRepository;
 
     @MockitoBean
-    private RedisTemplate<String, Object> redisTemplate;
-
-    @MockitoBean
     private StringRedisTemplate stringRedisTemplate;
 
     @MockitoBean
@@ -225,7 +222,9 @@ class SearchServiceCacheAndPopularTest {
      * SRCH-S-11, 12 — Redis Cache-Aside 도전 기능 구현 후 활성화
      *
      * SA 문서 ADR-006: cache.provider=redis 전환 시 RedisCacheManager 자동 적용
-     * → application-test-redis.yml 생성 후 @ActiveProfiles("test-redis")로 전환
+     * →@TestPropertySource(properties = {
+     *  "cache.provider=redis"  // 이것만 Redis로 오버라이드
+     *  })
      *
      * SRCH-S-11: Cache-Aside MISS → DB 조회 → Redis SET 호출 확인
      * SRCH-S-12: Cache-Aside HIT → Repository 미호출 확인
