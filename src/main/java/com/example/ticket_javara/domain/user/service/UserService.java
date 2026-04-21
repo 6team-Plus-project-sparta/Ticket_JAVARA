@@ -95,12 +95,8 @@ public class UserService {
         
         List<UserCoupon> coupons = userCouponRepository.findByUserUserId(userId);
         
-        LocalDateTime now = LocalDateTime.now();
-        Stream<UserCoupon> stream = coupons.stream()
-                // 사용 가능(ISSUED) 상태이고 만료되지 않은 쿠폰만 필터링
-                .filter(uc -> uc.getStatus() == UserCouponStatus.ISSUED 
-                           && uc.getCoupon().getExpiredAt().isAfter(now));
-
+        Stream<UserCoupon> stream = coupons.stream();
+        
         // 프론트가 보낸 스트링 정렬 분기
         Comparator<UserCoupon> comparator;
         String sortType = (condition != null && condition.getSortType() != null) ? condition.getSortType() : "";
