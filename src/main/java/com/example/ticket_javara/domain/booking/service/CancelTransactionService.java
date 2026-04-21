@@ -107,6 +107,7 @@ public class CancelTransactionService {
 
         // ── 10. ORDER → CANCELLED ──
         order.cancel();
+        orderRepository.save(order);  // ← 추가
 
         // ── 11. [쿠폰 적용 시] USER_COUPON → ISSUED 복원 ──
         if (order.getUserCoupon() != null) {
