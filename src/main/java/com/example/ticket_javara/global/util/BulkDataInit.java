@@ -1,5 +1,6 @@
 package com.example.ticket_javara.global.util;
 
+import com.example.ticket_javara.domain.user.entity.UserRole;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -178,10 +179,10 @@ public class BulkDataInit implements ApplicationRunner {
 
     private long insertAdmin() {
         Long existing = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM users WHERE role = 'ADMIN'", Long.class);
+                "SELECT COUNT(*) FROM users WHERE role = ?", Long.class, UserRole.ADMIN.name());
         if (existing != null && existing > 0) {
             Long id = jdbcTemplate.queryForObject(
-                    "SELECT user_id FROM users WHERE role = 'ADMIN' LIMIT 1", Long.class);
+                    "SELECT user_id FROM users WHERE role = ? LIMIT 1", Long.class, UserRole.ADMIN.name());
             log.info("[BulkDataInit] ADMIN 이미 존재 (user_id={}), 스킵", id);
             return id != null ? id : 1L;
         }
@@ -193,12 +194,12 @@ public class BulkDataInit implements ApplicationRunner {
                 "admin@ticketflow.io",
                 passwordEncoder.encode("Admin1234!"),   // BCrypt 암호화
                 "관리자",
-                "ADMIN",
+                UserRole.ADMIN.name(),
                 now,
                 now
         );
         Long id = jdbcTemplate.queryForObject(
-                "SELECT user_id FROM users WHERE role = 'ADMIN' LIMIT 1", Long.class);
+                "SELECT user_id FROM users WHERE role = ? LIMIT 1", Long.class, UserRole.ADMIN.name());
         log.info("[BulkDataInit] ADMIN 생성 완료 (email=admin@ticketflow.io, user_id={})", id);
         return id != null ? id : 1L;
     }

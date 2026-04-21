@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -13,12 +14,14 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class EventDetailResponseDto {
+public class EventDetailResponseDto implements Serializable {
     private Long eventId;
     private String title;
     private EventCategory category;
     private VenueDto venue;
     private LocalDateTime eventDate;
+    private LocalDateTime saleStartAt;
+    private LocalDateTime saleEndAt;
     private String description;
     private String thumbnailUrl;
     private List<SectionDetailDto> sections;

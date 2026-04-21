@@ -4,6 +4,7 @@ import com.example.ticket_javara.domain.event.dto.request.EventCreateRequestDto;
 import com.example.ticket_javara.domain.event.dto.request.SectionCreateDto;
 import com.example.ticket_javara.domain.event.dto.response.EventCreateResponseDto;
 import com.example.ticket_javara.domain.event.dto.response.EventDetailResponseDto;
+import com.example.ticket_javara.domain.event.dto.response.SeatResponseDto;
 import com.example.ticket_javara.domain.event.entity.*;
 import com.example.ticket_javara.domain.event.repository.EventRepository;
 import com.example.ticket_javara.domain.event.repository.SeatRepository;
@@ -16,14 +17,17 @@ import com.example.ticket_javara.global.exception.ErrorCode;
 import com.example.ticket_javara.global.exception.InvalidRequestException;
 import com.example.ticket_javara.global.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
+
 import com.example.ticket_javara.global.event.EventCreatedEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import lombok.extern.slf4j.Slf4j;
@@ -40,8 +44,11 @@ public class EventService {
     private final SeatRepository seatRepository;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final RedisTemplate<String, String> redisTemplate;
+    private final EventDetailCacheService eventDetailCacheService; // BUG-01: 캐시 전용 Bean 분리
 
     @Transactional
+    @CacheEvict(value = "event-detail", allEntries = true)
     public EventCreateResponseDto createEvent(EventCreateRequestDto requestDto, Long adminId) {
         if (!requestDto.getSaleStartAt().isBefore(requestDto.getSaleEndAt()) ||
                 !requestDto.getSaleEndAt().isBefore(requestDto.getEventDate())) {
@@ -118,37 +125,42 @@ public class EventService {
                 .build();
     }
 
+    /**
+     * 이벤트 상세 조회 (BUG-01 수정)
+     *
+     * ① 이벤트 기본 정보: EventDetailCacheService.getCachedEventDetail() — TTL 10분 캐시 활용
+     * ② 잔여 좌석 수   : 캐시 밖에서 실시간 조회 후 새 SectionDetailDto로 교체
+     *
+     * self-invocation 방지: @Cacheable이 붙은 메서드를 별도 Bean(EventDetailCacheService)에 위임
+     */
     public EventDetailResponseDto getEventDetail(Long eventId) {
-        Event event = eventRepository.findByIdWithVenueAndSections(eventId)
-                .orElseThrow(() -> new NotFoundException(ErrorCode.EVENT_NOT_FOUND));
+        // ① 기본 정보 캐시 조회 (remainingSeats = 0L placeholder)
+        EventDetailResponseDto cached = eventDetailCacheService.getCachedEventDetail(eventId);
 
-        List<EventDetailResponseDto.SectionDetailDto> sectionDtos = new ArrayList<>();
+        // ② 섹션별 잔여 좌석 수 실시간 조회 → 새 SectionDetailDto 생성(toBuilder 미지원)
+        List<EventDetailResponseDto.SectionDetailDto> sectionsWithSeats =
+                cached.getSections().stream()
+                        .map(s -> EventDetailResponseDto.SectionDetailDto.builder()
+                                .sectionId(s.getSectionId())
+                                .sectionName(s.getSectionName())
+                                .price(s.getPrice())
+                                .totalSeats(s.getTotalSeats())
+                                .remainingSeats(seatRepository.countAvailableSeatsBySectionId(s.getSectionId()))
+                                .build())
+                        .collect(Collectors.toList());
 
-        for (Section section : event.getSections()) {
-            long remainingSeats = seatRepository.countAvailableSeatsBySectionId(section.getSectionId());
-
-            sectionDtos.add(EventDetailResponseDto.SectionDetailDto.builder()
-                    .sectionId(section.getSectionId())
-                    .sectionName(section.getSectionName())
-                    .price(section.getPrice())
-                    .totalSeats(section.getTotalSeats())
-                    .remainingSeats(remainingSeats)
-                    .build());
-        }
-
+        // ③ 기본 정보 + 실시간 잔여 좌석 수 조합
         return EventDetailResponseDto.builder()
-                .eventId(event.getEventId())
-                .title(event.getTitle())
-                .category(event.getCategory())
-                .venue(EventDetailResponseDto.VenueDto.builder()
-                        .venueId(event.getVenue().getVenueId())
-                        .name(event.getVenue().getName())
-                        .address(event.getVenue().getAddress())
-                        .build())
-                .eventDate(event.getEventDate())
-                .description(event.getDescription())
-                .thumbnailUrl(event.getThumbnailUrl())
-                .sections(sectionDtos)
+                .eventId(cached.getEventId())
+                .title(cached.getTitle())
+                .category(cached.getCategory())
+                .venue(cached.getVenue())
+                .eventDate(cached.getEventDate())
+                .saleStartAt(cached.getSaleStartAt())
+                .saleEndAt(cached.getSaleEndAt())
+                .description(cached.getDescription())
+                .thumbnailUrl(cached.getThumbnailUrl())
+                .sections(sectionsWithSeats)
                 .build();
     }
 
@@ -188,5 +200,90 @@ public class EventService {
                     .thumbnailUrl(event.getThumbnailUrl())
                     .build();
         });
+    }
+
+    /**
+     * 이벤트 ID로 구역별 좌석 상태 조회
+     * 좌석 상태 판단 (SA 문서 FN-SEAT-01 기준):
+     *   1. ACTIVE_BOOKING 존재 → CONFIRMED
+     *   2. Redis hold:{eventId}:{seatId} 키 존재 → ON_HOLD
+     *   3. 그 외 → AVAILABLE
+     *
+     * @param eventId   조회할 이벤트 ID
+     * @param sectionId null이면 전체 구역, 값이 있으면 해당 구역만
+     */
+    public SeatResponseDto getSeatsByEventId(Long eventId, Long sectionId) {
+
+        // 1. 이벤트 존재 여부 확인
+        Event event = eventRepository.findByIdWithVenue(eventId)
+                .orElseThrow(() -> new NotFoundException(ErrorCode.EVENT_NOT_FOUND));
+
+        // 2. 좌석 목록 조회 (섹션 필터 분기)
+        List<Seat> seats = (sectionId != null)
+                ? seatRepository.findAllBySectionIdWithSection(sectionId)
+                : seatRepository.findAllByEventIdWithSection(eventId);
+
+        // 3. CONFIRMED 좌석 ID Set 조회 (ACTIVE_BOOKING 기반)
+        Set<Long> confirmedSeatIds = new HashSet<>(
+                seatRepository.findConfirmedSeatIdsByEventId(eventId)
+        );
+
+        // 4. 섹션별 그룹핑
+        Map<Long, List<Seat>> seatsBySection = seats.stream()
+                .collect(Collectors.groupingBy(s -> s.getSection().getSectionId()));
+
+        // 5. 섹션 순서 유지를 위해 섹션 정보 추출
+        List<SeatResponseDto.SectionSeatDto> sectionDtos = seatsBySection.entrySet().stream()
+                .map(entry -> {
+                    Section section = entry.getValue().get(0).getSection();
+                    List<SeatResponseDto.SeatDto> seatDtos = entry.getValue().stream()
+                            .map(seat -> {
+                                SeatResponseDto.SeatStatus status = resolveSeatStatus(
+                                        seat.getSeatId(), eventId, confirmedSeatIds
+                                );
+                                return SeatResponseDto.SeatDto.builder()
+                                        .seatId(seat.getSeatId())
+                                        .rowName(seat.getRowName())
+                                        .colNum(seat.getColNum())
+                                        .seatNumber(seat.getRowName() + "-" + seat.getColNum())
+                                        .status(status)
+                                        .build();
+                            })
+                            .collect(Collectors.toList());
+
+                    return SeatResponseDto.SectionSeatDto.builder()
+                            .sectionId(section.getSectionId())
+                            .sectionName(section.getSectionName())
+                            .price(section.getPrice())
+                            .seats(seatDtos)
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        return SeatResponseDto.builder()
+                .eventId(eventId)
+                .sections(sectionDtos)
+                .build();
+    }
+
+    /**
+     * 좌석 상태 결정 로직
+     * CONFIRMED 우선 → ON_HOLD → AVAILABLE
+     */
+    private SeatResponseDto.SeatStatus resolveSeatStatus(
+            Long seatId, Long eventId, Set<Long> confirmedSeatIds) {
+
+        if (confirmedSeatIds.contains(seatId)) {
+            return SeatResponseDto.SeatStatus.CONFIRMED;
+        }
+
+        // Redis hold:{eventId}:{seatId} 키 존재 여부 확인
+        String holdKey = "hold:" + eventId + ":" + seatId;
+        Boolean isOnHold = redisTemplate.hasKey(holdKey);
+        if (Boolean.TRUE.equals(isOnHold)) {
+            return SeatResponseDto.SeatStatus.ON_HOLD;
+        }
+
+        return SeatResponseDto.SeatStatus.AVAILABLE;
     }
 }

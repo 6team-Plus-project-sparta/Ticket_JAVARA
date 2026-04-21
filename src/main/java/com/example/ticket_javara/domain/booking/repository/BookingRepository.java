@@ -1,12 +1,12 @@
 package com.example.ticket_javara.domain.booking.repository;
 
 import com.example.ticket_javara.domain.booking.entity.Booking;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,13 +17,18 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     /**
      * 주문 내 예약 목록 조회 (Seat, Section, Event JOIN FETCH — N+1 방지)
-     * 웹훅 처리 시 holdKey 구성을 위해 eventId, seatId 필요
+     * - 웹훅 처리 시 holdKey 구성을 위해 eventId, seatId 필요
+     * - 주문 상세 조회 시 eventTitle, seatInfo 조립에 필요
+     *
+     * [Event JOIN FETCH 추가 이유]
+     * OrderDetailService에서 booking.getEvent().getTitle() 접근 시
+     * Event가 LAZY 로딩이면 N+1 발생 → JOIN FETCH로 한 번에 조회
      */
     @Query("SELECT b FROM Booking b " +
-           "JOIN FETCH b.seat s " +
-           "JOIN FETCH s.section sec " +
-           "JOIN FETCH sec.event " +
-           "WHERE b.order.orderId = :orderId")
+            "JOIN FETCH b.seat s " +
+            "JOIN FETCH s.section sec " +
+            "JOIN FETCH b.event e " +
+            "WHERE b.order.orderId = :orderId")
     List<Booking> findByOrderOrderId(@Param("orderId") Long orderId);
 
     /**

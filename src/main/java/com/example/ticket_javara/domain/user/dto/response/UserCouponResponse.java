@@ -15,18 +15,23 @@ public class UserCouponResponse {
     private Long couponId;
     private String name;
     private Integer discountAmount;
-    private UserCouponStatus status;
+    private String status;
     private LocalDateTime issuedAt;
     private LocalDateTime usedAt;
     private LocalDateTime expiredAt;
 
     public static UserCouponResponse from(UserCoupon userCoupon) {
+        String finalStatus = userCoupon.getStatus().name();
+        if (userCoupon.getStatus() == UserCouponStatus.ISSUED && userCoupon.getCoupon().getExpiredAt().isBefore(LocalDateTime.now())) {
+            finalStatus = "EXPIRED";
+        }
+
         return UserCouponResponse.builder()
                 .userCouponId(userCoupon.getUserCouponId())
                 .couponId(userCoupon.getCoupon().getCouponId())
                 .name(userCoupon.getCoupon().getName())
                 .discountAmount(userCoupon.getCoupon().getDiscountAmount())
-                .status(userCoupon.getStatus())
+                .status(finalStatus)
                 .issuedAt(userCoupon.getIssuedAt())
                 .usedAt(userCoupon.getUsedAt())
                 .expiredAt(userCoupon.getCoupon().getExpiredAt())
