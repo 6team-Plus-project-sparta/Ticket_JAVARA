@@ -85,7 +85,8 @@ public class CacheConfig {
         GenericJackson2JsonRedisSerializer jsonSerializer =
             new GenericJackson2JsonRedisSerializer(objectMapper);
 
-        RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
+        // ✅ event-search: TTL 5분 (기본값)
+        RedisCacheConfiguration searchConfig = RedisCacheConfiguration.defaultCacheConfig()
             .entryTtl(Duration.ofMinutes(5))
             .serializeKeysWith(
                 RedisSerializationContext.SerializationPair
@@ -97,8 +98,19 @@ public class CacheConfig {
             )
             .disableCachingNullValues();
 
+        // ✅ event-detail: TTL 10분 (SA 문서 FN-EVT-03 기준) — BUG-02 수정
+        RedisCacheConfiguration detailConfig = searchConfig
+            .entryTtl(Duration.ofMinutes(10));
+
+        // 캐시별 TTL 명시 (Caffeine 모드와 동일한 TTL 정책)
+        Map<String, RedisCacheConfiguration> cacheConfigs = new HashMap<>();
+        cacheConfigs.put("event-search", searchConfig);
+        cacheConfigs.put("event-detail", detailConfig);
+
         return RedisCacheManager.builder(redisConnectionFactory)
-            .cacheDefaults(config)
+            .cacheDefaults(searchConfig)
+            .withInitialCacheConfigurations(cacheConfigs)
             .build();
     }
+
 }

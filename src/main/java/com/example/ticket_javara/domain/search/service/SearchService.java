@@ -16,9 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
-import org.springframework.data.redis.connection.RedisConnection;
 
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 @Slf4j
@@ -116,26 +114,32 @@ public class SearchService {
     }
 
     /**
-     * 이벤트 등록 시 호출 — event-search::* 패턴 Redis 키 전체 삭제
-     * KEYS 명령 사용 금지 → SCAN + DEL 사용
+     * 이벤트 등록 시 호출 — event-search 캐시 전체 삭제 (BUG-03 수정)
+     *
+     * ✅ 방법 A (현재 적용): CacheManager 추상화 사용
+     *    - CacheManager.getCache("event-search").clear()
+     *    - Caffeine 모드 → 로컬 캐시 전체 삭제
+     *    - Redis 모드   → 해당 캐시 네임스페이스 키 전체 삭제
+     *    - provider 변경 시 코드 수정 불필요
+     *
+     * ℹ️ 방법 B (대용량 Redis 환경, SCAN+DEL을 유지하고 싶을 때):
+     *    if (cacheManager instanceof CaffeineCacheManager) {
+     *        cache.clear();
+     *    } else {
+     *        // RedisConnection SCAN+DEL 기존 로직
+     *    }
      */
     public void evictSearchCache() {
-        ScanOptions options = ScanOptions.scanOptions()
-            .match("event-search::*")
-            .count(100)
-            .build();
-
-        RedisConnection connection = Objects.requireNonNull(
-            redisTemplate.getConnectionFactory()).getConnection();
-
-        try (Cursor<byte[]> cursor = connection.scan(options)) {
-            while (cursor.hasNext()) {
-                String key = new String(cursor.next(), StandardCharsets.UTF_8);
-                redisTemplate.delete(key);
+        try {
+            Cache cache = cacheManager.getCache("event-search");//현재 모드에 맞는 캐시를 가져옴 (Caffeine || Redis)
+            if (cache != null) {
+                cache.clear();
+                log.info("[SearchService] event-search 캐시 전체 삭제 완료 (provider-agnostic)");
+            } else {
+                log.warn("[SearchService] event-search 캐시를 찾을 수 없음");
             }
-            log.info("[SearchService] event-search::* 캐시 전체 삭제 완료");
         } catch (Exception e) {
-            log.warn("[SearchService] event-search:: 캐시 삭제 실패 — 비즈니스 로직에 영향 없음: {}", e.getMessage());
+            log.warn("[SearchService] event-search 캐시 삭제 실패 — 비즈니스 로직에 영향 없음: {}", e.getMessage());
         }
     }
 

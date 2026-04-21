@@ -24,6 +24,7 @@ import com.example.ticket_javara.domain.search.dto.response.EventSummaryResponse
 import com.example.ticket_javara.domain.user.entity.User;
 import com.example.ticket_javara.domain.user.entity.UserRole;
 import com.example.ticket_javara.domain.user.repository.UserRepository;
+import com.example.ticket_javara.global.exception.ErrorCode;
 import com.example.ticket_javara.global.exception.InvalidRequestException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.core.RedisTemplate;
 
 import com.example.ticket_javara.domain.event.dto.request.EventCreateRequestDto;
 import com.example.ticket_javara.domain.event.dto.request.SectionCreateDto;
@@ -69,6 +71,14 @@ public class EventServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    // BUG-01 수정: EventDetailCacheService 분리에 따른 Mock 추가
+    @Mock
+    private EventDetailCacheService eventDetailCacheService;
+
+    // resolveSeatStatus()에서 Redis hold 키 조회 시 사용
+    @Mock
+    private RedisTemplate<String, String> redisTemplate;
 
     @InjectMocks
     private EventService eventService;
@@ -395,31 +405,30 @@ public class EventServiceTest {
                 .address("서울시 마포구")
                 .build();
 
-        Event event = mock(Event.class);
-        Section section1 = mock(Section.class);
-        Section section2 = mock(Section.class);
+        // BUG-01 수정: eventDetailCacheService.getCachedEventDetail()이 기본 정보(remainingSeats=0) 반환
+        // EventService.getEventDetail()이 캐시에서 가져온 후 seatRepository로 잔여 좌석 수를 실시간 주입
+        EventDetailResponseDto.SectionDetailDto cachedSection1 = EventDetailResponseDto.SectionDetailDto.builder()
+                .sectionId(1L).sectionName("A구역").price(110000).totalSeats(200)
+                .remainingSeats(0L)  // placeholder
+                .build();
+        EventDetailResponseDto.SectionDetailDto cachedSection2 = EventDetailResponseDto.SectionDetailDto.builder()
+                .sectionId(2L).sectionName("B구역").price(88000).totalSeats(150)
+                .remainingSeats(0L)  // placeholder
+                .build();
+        EventDetailResponseDto cachedDto = EventDetailResponseDto.builder()
+                .eventId(eventId)
+                .title("BTS 월드투어 2026")
+                .category(EventCategory.CONCERT)
+                .venue(EventDetailResponseDto.VenueDto.builder()
+                        .venueId(1L).name("서울월드컵경기장").address("서울시 마포구").build())
+                .eventDate(LocalDateTime.now().plusDays(30))
+                .description("BTS 공연")
+                .thumbnailUrl("https://example.com/thumbnail.jpg")
+                .sections(List.of(cachedSection1, cachedSection2))
+                .build();
 
-        given(section1.getSectionId()).willReturn(1L);
-        given(section1.getSectionName()).willReturn("A구역");
-        given(section1.getPrice()).willReturn(110000);
-        given(section1.getTotalSeats()).willReturn(200);
-
-        given(section2.getSectionId()).willReturn(2L);
-        given(section2.getSectionName()).willReturn("B구역");
-        given(section2.getPrice()).willReturn(88000);
-        given(section2.getTotalSeats()).willReturn(150);
-
-        given(event.getEventId()).willReturn(eventId);
-        given(event.getTitle()).willReturn("BTS 월드투어 2026");
-        given(event.getCategory()).willReturn(EventCategory.CONCERT);
-        given(event.getVenue()).willReturn(venue);
-        given(event.getEventDate()).willReturn(LocalDateTime.now().plusDays(30));
-        given(event.getDescription()).willReturn("BTS 공연");
-        given(event.getThumbnailUrl()).willReturn("https://example.com/thumbnail.jpg");
-        given(event.getSections()).willReturn(List.of(section1, section2));
-
-        given(eventRepository.findByIdWithVenueAndSections(eventId))
-                .willReturn(Optional.of(event));
+        given(eventDetailCacheService.getCachedEventDetail(eventId)).willReturn(cachedDto);
+        // seatRepository는 EventService에서 직접 호출 (캐시 밖 실시간 조회)
         given(seatRepository.countAvailableSeatsBySectionId(1L)).willReturn(87L);
         given(seatRepository.countAvailableSeatsBySectionId(2L)).willReturn(120L);
 
@@ -429,8 +438,8 @@ public class EventServiceTest {
         // then
         assertThat(result.getEventId()).isEqualTo(eventId);
         assertThat(result.getSections()).hasSize(2);
-        assertThat(result.getSections().get(0).getRemainingSeats()).isEqualTo(87L);
-        assertThat(result.getSections().get(1).getRemainingSeats()).isEqualTo(120L);
+        assertThat(result.getSections().get(0).getRemainingSeats()).isEqualTo(87L);  // 실시간 조회값
+        assertThat(result.getSections().get(1).getRemainingSeats()).isEqualTo(120L); // 실시간 조회값
         assertThat(result.getVenue().getName()).isEqualTo("서울월드컵경기장");
     }
 
@@ -440,8 +449,9 @@ public class EventServiceTest {
     void getEventDetail_Fail_NotFound() {
         // given
         Long eventId = 999L;
-        given(eventRepository.findByIdWithVenueAndSections(eventId))
-                .willReturn(Optional.empty());
+        // BUG-01 수정: eventDetailCacheService가 NotFoundException을 던지도록 스텁
+        given(eventDetailCacheService.getCachedEventDetail(eventId))
+                .willThrow(new NotFoundException(ErrorCode.EVENT_NOT_FOUND));
 
         // when & then
         assertThatThrownBy(() -> eventService.getEventDetail(eventId))
