@@ -39,7 +39,7 @@ public class Order extends BaseTimeEntity {
     private User user;
 
     /** 사용한 쿠폰 (적용 안 했으면 null) */
-    @OneToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_coupon_id")
     private UserCoupon userCoupon;
 

@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -29,4 +30,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT o FROM Order o WHERE o.orderId = :orderId")
     Optional<Order> findByIdWithLock(@Param("orderId") Long orderId);
+
+    /**
+     * 특정 쿠폰을 사용한 PENDING 주문 조회
+     * 주문 생성 전 기존 PENDING 주문 정리용
+     */
+    List<Order> findByUserCouponUserCouponIdAndStatus(Long userCouponId, OrderStatus status);
 }
