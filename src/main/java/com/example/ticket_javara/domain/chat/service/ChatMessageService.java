@@ -45,8 +45,9 @@ public class ChatMessageService {
             throw new BusinessException(ErrorCode.CHAT_ROOM_ALREADY_CLOSED);
         }
 
-        // STOMP Principal에서 가져온 신뢰할 수 있는 객체에서 권한 검증 (보안 강화)
-        SenderRole role = ("ROLE_ADMIN".equals(userDetails.getRole()) || "ADMIN".equals(userDetails.getRole())) 
+        // Spring Security의 Authority를 직접 활용하여 검증 (타입 안전성 향상)
+        SenderRole role = userDetails.getAuthorities().stream()
+                .anyMatch(auth -> "ROLE_ADMIN".equals(auth.getAuthority()) || "ADMIN".equals(auth.getAuthority())) 
                 ? SenderRole.ADMIN : SenderRole.USER;
         Long senderId = userDetails.getUserId();
 
