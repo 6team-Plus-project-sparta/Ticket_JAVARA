@@ -41,7 +41,6 @@ public class ChatRoomService {
     /**
      * 사용자의 기존 WAITING 채팅방 반환 또는 새로 생성 (분산락 적용)
      */
-    @Transactional
     public ChatRoomResponse createOrGetRoom(Long userId) {
         return chatRoomRepository.findLatestOpenRoomByUserId(userId)
                 .map(room -> ChatRoomResponse.of(room, false))
