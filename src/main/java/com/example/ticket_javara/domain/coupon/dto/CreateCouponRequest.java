@@ -1,7 +1,9 @@
 package com.example.ticket_javara.domain.coupon.dto;
 
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 import java.time.LocalDateTime;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -10,6 +12,8 @@ import jakarta.validation.constraints.AssertTrue;
 
 @Getter
 @NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class CreateCouponRequest {
     @NotBlank
     private String name;

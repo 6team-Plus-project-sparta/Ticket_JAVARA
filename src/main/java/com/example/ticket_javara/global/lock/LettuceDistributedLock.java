@@ -1,5 +1,7 @@
 package com.example.ticket_javara.global.lock;
 
+import com.example.ticket_javara.global.exception.ConflictException;
+import com.example.ticket_javara.global.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -24,6 +26,10 @@ public class LettuceDistributedLock implements DistributedLockProvider {
     private static final DefaultRedisScript<Long> UNLOCK_SCRIPT = new DefaultRedisScript<>(
             LuaScripts.UNLOCK_SCRIPT, Long.class
     );
+
+    private static final long DEFAULT_TTL_SECONDS = 10L;
+    private static final int MAX_RETRY_ATTEMPTS = 3;
+    private static final long RETRY_DELAY_MS = 100L;
 
     public LettuceDistributedLock(StringRedisTemplate redisTemplate) {
         this.redisTemplate = redisTemplate;
@@ -58,6 +64,30 @@ public class LettuceDistributedLock implements DistributedLockProvider {
 
     @Override
     public <T> T executeWithLock(String key, Supplier<T> task) {
-        return null;
+        String lockValue = java.util.UUID.randomUUID().toString();
+        
+        for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+            if (tryLock(key, lockValue, DEFAULT_TTL_SECONDS)) {
+                try {
+                    log.debug("[LettuceDistributedLock] 락 획득 성공, 작업 실행 key={}, attempt={}", key, attempt);
+                    return task.get();
+                } finally {
+                    unlock(key, lockValue);
+                }
+            }
+            
+            if (attempt < MAX_RETRY_ATTEMPTS) {
+                try {
+                    Thread.sleep(RETRY_DELAY_MS * attempt); // 지수 백오프
+                    log.debug("[LettuceDistributedLock] 락 재시도 대기 key={}, attempt={}", key, attempt);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new ConflictException(ErrorCode.SEAT_LOCK_FAILED);
+                }
+            }
+        }
+        
+        log.warn("[LettuceDistributedLock] 락 획득 최종 실패 key={}, maxAttempts={}", key, MAX_RETRY_ATTEMPTS);
+        throw new ConflictException(ErrorCode.SEAT_LOCK_FAILED);
     }
 }

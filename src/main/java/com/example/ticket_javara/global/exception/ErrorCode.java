@@ -83,8 +83,10 @@ public enum ErrorCode {
     // H: 채팅 (Chat)
     // ──────────────────────────────────────────────────
     CHAT_ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "H001", "존재하지 않는 채팅방입니다."),
-    CHAT_ROOM_ALREADY_CLOSED(HttpStatus.BAD_REQUEST, "H002", "이미 종료된 채팅방입니다."),
+    CHAT_ROOM_ALREADY_CLOSED(HttpStatus.BAD_REQUEST, "H002", "이미 완료된 채팅방입니다. 메시지를 전송할 수 없습니다."),
     CHAT_UNAUTHORIZED(HttpStatus.FORBIDDEN, "H003", "해당 채팅방에 접근 권한이 없습니다."),
+    INVALID_CHAT_STATUS_TRANSITION(HttpStatus.BAD_REQUEST, "H004", "유효하지 않은 채팅방 상태 전이입니다. (WAITING→IN_PROGRESS→COMPLETED 순서만 허용)"),
+    CHAT_ROOM_NOT_ACTIVE(HttpStatus.BAD_REQUEST, "H005", "활성 상태의 채팅방이 아닙니다."),
 
     // ──────────────────────────────────────────────────
     // G: 공통 (Global)
