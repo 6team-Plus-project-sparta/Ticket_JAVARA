@@ -24,6 +24,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -37,11 +38,11 @@ public class ChatRoomService {
     private final ChatMessageRepository chatMessageRepository;
     private final DistributedLockProvider lockProvider;
     private final UserRepository userRepository;
+    private final TransactionTemplate transactionTemplate;
 
     /**
      * 사용자의 기존 WAITING 채팅방 반환 또는 새로 생성 (분산락 적용)
      */
-    @Transactional
     public ChatRoomResponse createOrGetRoom(Long userId) {
         return chatRoomRepository.findLatestOpenRoomByUserId(userId)
                 .map(room -> ChatRoomResponse.of(room, false))
@@ -51,12 +52,14 @@ public class ChatRoomService {
                             .orElseThrow(() -> new NotFoundException(ErrorCode.NOT_FOUND));
 
                     return lockProvider.executeWithLock(lockKey, () ->
-                            chatRoomRepository.findLatestOpenRoomByUserId(userId)
-                                    .map(room -> ChatRoomResponse.of(room, false))
-                                    .orElseGet(() -> {
-                                        ChatRoom newRoom = ChatRoom.builder().user(user).build();
-                                        return ChatRoomResponse.of(chatRoomRepository.save(newRoom), true);
-                                    })
+                            transactionTemplate.execute(status -> 
+                                chatRoomRepository.findLatestOpenRoomByUserId(userId)
+                                        .map(room -> ChatRoomResponse.of(room, false))
+                                        .orElseGet(() -> {
+                                            ChatRoom newRoom = ChatRoom.builder().user(user).build();
+                                            return ChatRoomResponse.of(chatRoomRepository.save(newRoom), true);
+                                        })
+                            )
                     );
                 });
     }

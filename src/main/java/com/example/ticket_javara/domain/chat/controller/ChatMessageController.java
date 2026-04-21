@@ -35,7 +35,7 @@ public class ChatMessageController {
         }
 
         CustomUserDetails userDetails = (CustomUserDetails) ((UsernamePasswordAuthenticationToken) principal).getPrincipal();
-        chatMessageService.saveAndSendMessage(userDetails.getUserId(), userDetails.getRole(), request);
+        chatMessageService.saveAndSendMessage(userDetails, request);
     }
 
     /**

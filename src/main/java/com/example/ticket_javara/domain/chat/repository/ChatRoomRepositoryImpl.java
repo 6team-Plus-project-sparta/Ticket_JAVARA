@@ -22,7 +22,7 @@ public class ChatRoomRepositoryImpl implements ChatRoomRepositoryCustom {
                 .join(chatRoom.user).fetchJoin()  // N+1 방지를 위한 fetch join
                 .where(
                         chatRoom.user.userId.eq(userId),
-                        chatRoom.status.eq(ChatRoomStatus.WAITING)
+                        chatRoom.status.in(ChatRoomStatus.WAITING, ChatRoomStatus.IN_PROGRESS)
                 )
                 .orderBy(chatRoom.createdAt.desc())
                 .limit(1)

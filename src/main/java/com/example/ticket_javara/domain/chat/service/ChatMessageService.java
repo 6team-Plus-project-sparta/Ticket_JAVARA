@@ -10,6 +10,7 @@ import com.example.ticket_javara.domain.chat.repository.ChatRoomRepository;
 import com.example.ticket_javara.global.exception.BusinessException;
 import com.example.ticket_javara.global.exception.ErrorCode;
 import com.example.ticket_javara.global.exception.NotFoundException;
+import com.example.ticket_javara.global.security.CustomUserDetails;
 import com.example.ticket_javara.global.util.AuthorizationUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,7 +34,7 @@ public class ChatMessageService {
     private final SimpMessagingTemplate messagingTemplate;
 
     @Transactional
-    public void saveAndSendMessage(Long senderId, String senderRoleParam, ChatMessageRequest request) {
+    public void saveAndSendMessage(CustomUserDetails userDetails, ChatMessageRequest request) {
         Long chatRoomId = request.getChatRoomId();
 
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
@@ -44,8 +45,11 @@ public class ChatMessageService {
             throw new BusinessException(ErrorCode.CHAT_ROOM_ALREADY_CLOSED);
         }
 
-        // Spring Security 기반 역할 판단 (타입 안전)
-        SenderRole role = AuthorizationUtil.isCurrentUserAdmin() ? SenderRole.ADMIN : SenderRole.USER;
+        // Spring Security의 표준 Authority(ROLE_ Prefix)를 신뢰하여 검증
+        SenderRole role = userDetails.getAuthorities().stream()
+                .anyMatch(auth -> "ROLE_ADMIN".equals(auth.getAuthority())) 
+                ? SenderRole.ADMIN : SenderRole.USER;
+        Long senderId = userDetails.getUserId();
 
         ChatMessage message = ChatMessage.builder()
                 .chatRoom(chatRoom)
