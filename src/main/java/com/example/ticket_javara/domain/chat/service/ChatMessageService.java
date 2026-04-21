@@ -10,6 +10,7 @@ import com.example.ticket_javara.domain.chat.repository.ChatRoomRepository;
 import com.example.ticket_javara.global.exception.BusinessException;
 import com.example.ticket_javara.global.exception.ErrorCode;
 import com.example.ticket_javara.global.exception.NotFoundException;
+import com.example.ticket_javara.global.security.CustomUserDetails;
 import com.example.ticket_javara.global.util.AuthorizationUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,7 +34,7 @@ public class ChatMessageService {
     private final SimpMessagingTemplate messagingTemplate;
 
     @Transactional
-    public void saveAndSendMessage(Long senderId, String senderRoleParam, ChatMessageRequest request) {
+    public void saveAndSendMessage(CustomUserDetails userDetails, ChatMessageRequest request) {
         Long chatRoomId = request.getChatRoomId();
 
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
@@ -44,9 +45,10 @@ public class ChatMessageService {
             throw new BusinessException(ErrorCode.CHAT_ROOM_ALREADY_CLOSED);
         }
 
-        // STOMP 세션은 SecurityContext가 비어있을 수 있으므로 컨트롤러에서 전달받은 senderRoleParam을 검증
-        SenderRole role = ("ROLE_ADMIN".equals(senderRoleParam) || "ADMIN".equals(senderRoleParam)) 
+        // STOMP Principal에서 가져온 신뢰할 수 있는 객체에서 권한 검증 (보안 강화)
+        SenderRole role = ("ROLE_ADMIN".equals(userDetails.getRole()) || "ADMIN".equals(userDetails.getRole())) 
                 ? SenderRole.ADMIN : SenderRole.USER;
+        Long senderId = userDetails.getUserId();
 
         ChatMessage message = ChatMessage.builder()
                 .chatRoom(chatRoom)
