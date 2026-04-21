@@ -45,9 +45,9 @@ public class ChatMessageService {
             throw new BusinessException(ErrorCode.CHAT_ROOM_ALREADY_CLOSED);
         }
 
-        // Spring Security의 Authority를 직접 활용하여 검증 (타입 안전성 향상)
+        // Spring Security의 표준 Authority(ROLE_ Prefix)를 신뢰하여 검증
         SenderRole role = userDetails.getAuthorities().stream()
-                .anyMatch(auth -> "ROLE_ADMIN".equals(auth.getAuthority()) || "ADMIN".equals(auth.getAuthority())) 
+                .anyMatch(auth -> "ROLE_ADMIN".equals(auth.getAuthority())) 
                 ? SenderRole.ADMIN : SenderRole.USER;
         Long senderId = userDetails.getUserId();
 
