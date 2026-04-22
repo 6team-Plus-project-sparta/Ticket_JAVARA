@@ -51,7 +51,4 @@ management:
     health:
       show-details: never
 cors:
-  allowed-origins:
-    - "https://www.ticketflow.io"
-    - "https://d3c4hewjvq93kw.cloudfront.net"
-    - "https://ticket-javara.site"
+  allowed-origins: "https://www.ticketflow.io,https://d3c4hewjvq93kw.cloudfront.net,https://ticket-javara.site"
