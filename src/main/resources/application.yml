@@ -1,6 +1,8 @@
 spring:
   application:
     name: ticket-javara
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
   cache:
     caffeine:
       spec: maximumSize=1000,expireAfterWrite=5m
@@ -8,5 +10,12 @@ spring:
       time-to-live: 300000
   lifecycle:
     timeout-per-shutdown-phase: 10s
+
 server:
   shutdown: graceful
+
+#이벤트 조회 캐시확인용
+#logging:
+#  level:
+#    org.springframework.cache: TRACE
+
