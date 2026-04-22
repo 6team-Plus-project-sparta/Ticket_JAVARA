@@ -71,8 +71,8 @@ jobs:
             docker compose --env-file .env up -d --no-deps app
 
             # 컨테이너가 starting 상태로 전환될 때까지 대기
-            echo "컨테이너 재시작 대기 중... (10초)"
-            sleep 10
+            echo "컨테이너 재시작 대기 중... (50초)"
+            sleep 50
 
             # Docker 헬스체크 상태로 대기 (docker-compose.yml의 healthcheck 활용)
             echo "헬스체크 대기 중..."
