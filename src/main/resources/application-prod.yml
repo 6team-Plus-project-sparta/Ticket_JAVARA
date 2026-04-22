@@ -54,3 +54,4 @@ cors:
   allowed-origins:
     - "https://www.ticketflow.io"
     - "https://d3c4hewjvq93kw.cloudfront.net"
+    - "https://ticket-javara.site"
