@@ -70,11 +70,15 @@ jobs:
             # MySQL, Redis는 유지하고 앱만 재시작
             docker compose --env-file .env up -d --no-deps app
 
+            # 컨테이너가 starting 상태로 전환될 때까지 대기
+            echo "컨테이너 재시작 대기 중... (10초)"
+            sleep 10
+
             # Docker 헬스체크 상태로 대기 (docker-compose.yml의 healthcheck 활용)
             echo "헬스체크 대기 중..."
             for i in $(seq 1 30); do
-              echo "⏳ 상태 확인 중... (${i}/30)"
               STATUS=$(docker inspect --format='{{.State.Health.Status}}' ticketjavara-app)
+              echo "⏳ 상태 확인 중... (${i}/30) → 현재: $STATUS"
               if [ "$STATUS" = "healthy" ]; then
                 echo "✅ 배포 성공!"
                 echo "${{ github.sha }}" > .previous_tag
