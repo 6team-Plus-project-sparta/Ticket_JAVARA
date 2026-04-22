@@ -67,21 +67,23 @@ jobs:
             # 새 앱 이미지 Pull
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/ticket-javara:${{ github.sha }}
 
-            # MySQL, Redis는 유지하고 앱만 재시작
+            
             docker compose --env-file .env up -d --no-deps app
-
-            # Actuator 헬스체크 - 5초 간격 최대 60초 대기
+            
+            # 앱 초기 기동 대기
+            echo "앱 초기 기동 대기 중... (20초)"
+            sleep 20
+            
             echo "헬스체크 시작..."
             for i in $(seq 1 12); do
-              STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/actuator/health)
-              if [ "$STATUS" = "200" ]; then
-                echo "✅ 배포 성공!"
-                # 배포 성공 시 현재 SHA를 이전 버전으로 기록
-                echo "${{ github.sha }}" > .previous_tag
-                exit 0
-              fi
-              echo "⏳ 대기 중... (${i}/12)"
-              sleep 5
+            echo "⏳ 대기 중... (${i}/12)"
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/actuator/health)
+            if [ "$STATUS" = "200" ]; then
+            echo "✅ 배포 성공!"
+            echo "${{ github.sha }}" > .previous_tag
+            exit 0
+            fi
+            sleep 5
             done
 
             # 헬스체크 실패 시 이전 버전으로 롤백
