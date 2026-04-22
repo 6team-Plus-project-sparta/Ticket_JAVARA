@@ -98,7 +98,7 @@ public class SearchService {
                     .min()
                     .orElse(0);
 
-            long remainingSeats = seatRepository.countAvailableSeatsByEventId(event.getEventId());
+            long remainingSeats = seatRepository.countAvailableSeatsBySectionId(event.getEventId());
 
             return EventSummaryResponseDto.builder()
                     .eventId(event.getEventId())
@@ -129,6 +129,7 @@ public class SearchService {
      *        // RedisConnection SCAN+DEL 기존 로직
      *    }
      */
+    //테스트에서만 사용
     public void evictSearchCache() {
         try {
             Cache cache = cacheManager.getCache("event-search");//현재 모드에 맞는 캐시를 가져옴 (Caffeine || Redis)

@@ -6,4 +6,5 @@ package com.example.ticket_javara.global.event;
  */
 public class EventCreatedEvent {
     // 페이로드 없음 — 발행 신호 역할만
+    // 프로젝트 규모에 비해 오버스펙으로 판단 사용x 추후 스케일업 및 스터디를 위해 추가함
 }

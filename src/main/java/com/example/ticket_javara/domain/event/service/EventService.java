@@ -28,7 +28,6 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import com.example.ticket_javara.global.event.EventCreatedEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import lombok.extern.slf4j.Slf4j;
 
@@ -48,7 +47,7 @@ public class EventService {
     private final EventDetailCacheService eventDetailCacheService; // BUG-01: 캐시 전용 Bean 분리
 
     @Transactional
-    @CacheEvict(value = "event-detail", allEntries = true)
+    @CacheEvict(value = "event-search", allEntries = true)
     public EventCreateResponseDto createEvent(EventCreateRequestDto requestDto, Long adminId) {
         if (!requestDto.getSaleStartAt().isBefore(requestDto.getSaleEndAt()) ||
                 !requestDto.getSaleEndAt().isBefore(requestDto.getEventDate())) {
@@ -114,9 +113,6 @@ public class EventService {
             sectionsCreated++;
         }
 
-        eventPublisher.publishEvent(new EventCreatedEvent());
-        log.info("[EventService] EventCreatedEvent 발행 — 검색 캐시 무효화 트리거");
-
         return EventCreateResponseDto.builder()
                 .eventId(event.getEventId())
                 .title(event.getTitle())
@@ -167,27 +163,55 @@ public class EventService {
     public Page<EventSummaryResponseDto> getEventList(EventCategory category, EventStatus status, Pageable pageable) {
         Page<Event> events;
 
+//        if (category != null && status != null) {
+//            events = eventRepository.findByCategoryAndStatus(category, status, pageable);
+//        } else if (category != null) {
+//            events = eventRepository.findByCategory(category, pageable);
+//        } else if (status != null) {
+//            events = eventRepository.findByStatus(status, pageable);
+//        } else {
+//            events = eventRepository.findAll(pageable);
+//        }
+
+        // venue만 fetch join (sections fetch join 제거 → HHH90003004 경고 해결)
         if (category != null && status != null) {
-            events = eventRepository.findByCategoryAndStatus(category, status, pageable);
+            events = eventRepository.findByCategoryAndStatusWithVenueAndSections(category, status, pageable);
         } else if (category != null) {
-            events = eventRepository.findByCategory(category, pageable);
+            events = eventRepository.findByCategoryWithVenueAndSections(category, pageable);
         } else if (status != null) {
-            events = eventRepository.findByStatus(status, pageable);
+            events = eventRepository.findByStatusWithVenueAndSections(status, pageable);
         } else {
-            events = eventRepository.findAll(pageable);
+            events = eventRepository.findAllWithVenueAndSections(pageable);
         }
 
+        // eventId 목록 추출 → 잔여좌석 수 쿼리 1번에 일괄 조회 (N+1 제거)
+        List<Long> eventIds = events.getContent().stream()
+                .map(Event::getEventId)
+                .toList();
+
+        // sections 일괄 조회 → Map<eventId, List<Section>> (쿼리 1번)
+        Map<Long, List<Section>> sectionMap = sectionRepository.findAllByEventIds(eventIds)
+                .stream()
+                .collect(Collectors.groupingBy(s -> s.getEvent().getEventId()));
+
+        // 잔여좌석 일괄 조회 → Map<eventId, remainingSeats> (쿼리 1번)
+        Map<Long, Long> remainingSeatMap = seatRepository.countAvailableSeatsByEventIds(eventIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        row -> (Long) row[0],
+                        row -> (Long) row[1]
+                ));
+
         return events.map(event -> {
-            // 최저가 계산
-            int minPrice = event.getSections().stream()
+            // sectionMap에서 조회 → 추가 쿼리 없음
+            List<Section> sections = sectionMap.getOrDefault(event.getEventId(), List.of());
+
+            int minPrice = sections.stream()
                     .mapToInt(Section::getPrice)
                     .min()
                     .orElse(0);
 
-            // 잔여좌석 계산
-            long remainingSeats = event.getSections().stream()
-                    .mapToLong(section -> seatRepository.countAvailableSeatsBySectionId(section.getSectionId()))
-                    .sum();
+            long remainingSeats = remainingSeatMap.getOrDefault(event.getEventId(), 0L);
 
             return EventSummaryResponseDto.builder()
                     .eventId(event.getEventId())

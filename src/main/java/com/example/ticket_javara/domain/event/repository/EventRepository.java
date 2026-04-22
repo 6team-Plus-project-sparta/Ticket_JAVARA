@@ -57,4 +57,33 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             @Param("now") LocalDateTime now,
             @Param("endedStatus") EventStatus endedStatus
     );
+
+    // HHH90003004문제발생하여 sections JOIN FETCH 제거
+    @Query(
+            value = "SELECT e FROM Event e JOIN FETCH e.venue",
+            countQuery = "SELECT COUNT(e) FROM Event e"
+    )
+    Page<Event> findAllWithVenueAndSections(Pageable pageable);
+
+    @Query(
+            value = "SELECT e FROM Event e JOIN FETCH e.venue WHERE e.category = :category",
+            countQuery = "SELECT COUNT(e) FROM Event e WHERE e.category = :category"
+    )
+    Page<Event> findByCategoryWithVenueAndSections(@Param("category") EventCategory category, Pageable pageable);
+
+    @Query(
+            value = "SELECT e FROM Event e JOIN FETCH e.venue WHERE e.status = :status",
+            countQuery = "SELECT COUNT(e) FROM Event e WHERE e.status = :status"
+    )
+    Page<Event> findByStatusWithVenueAndSections(@Param("status") EventStatus status, Pageable pageable);
+
+    @Query(
+            value = "SELECT e FROM Event e JOIN FETCH e.venue WHERE e.category = :category AND e.status = :status",
+            countQuery = "SELECT COUNT(e) FROM Event e WHERE e.category = :category AND e.status = :status"
+    )
+    Page<Event> findByCategoryAndStatusWithVenueAndSections(
+            @Param("category") EventCategory category,
+            @Param("status") EventStatus status,
+            Pageable pageable
+    );
 }

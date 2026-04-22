@@ -8,5 +8,12 @@ spring:
       time-to-live: 300000
   lifecycle:
     timeout-per-shutdown-phase: 10s
+
 server:
   shutdown: graceful
+
+#이벤트 조회 캐시확인용
+#logging:
+#  level:
+#    org.springframework.cache: TRACE
+
