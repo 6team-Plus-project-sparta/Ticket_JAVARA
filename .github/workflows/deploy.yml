@@ -67,23 +67,20 @@ jobs:
             # 새 앱 이미지 Pull
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/ticket-javara:${{ github.sha }}
 
-            
+            # MySQL, Redis는 유지하고 앱만 재시작
             docker compose --env-file .env up -d --no-deps app
-            
-            # 앱 초기 기동 대기
-            echo "앱 초기 기동 대기 중... (20초)"
-            sleep 20
-            
-            echo "헬스체크 시작..."
-            for i in $(seq 1 12); do
-            echo "⏳ 대기 중... (${i}/12)"
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/actuator/health)
-            if [ "$STATUS" = "200" ]; then
-            echo "✅ 배포 성공!"
-            echo "${{ github.sha }}" > .previous_tag
-            exit 0
-            fi
-            sleep 5
+
+            # Docker 헬스체크 상태로 대기 (docker-compose.yml의 healthcheck 활용)
+            echo "헬스체크 대기 중..."
+            for i in $(seq 1 30); do
+              echo "⏳ 상태 확인 중... (${i}/30)"
+              STATUS=$(docker inspect --format='{{.State.Health.Status}}' ticketjavara-app)
+              if [ "$STATUS" = "healthy" ]; then
+                echo "✅ 배포 성공!"
+                echo "${{ github.sha }}" > .previous_tag
+                exit 0
+              fi
+              sleep 5
             done
 
             # 헬스체크 실패 시 이전 버전으로 롤백
