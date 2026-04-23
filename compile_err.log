@@ -1,0 +1,94 @@
+> Task :compileJava UP-TO-DATE
+> Task :processResources UP-TO-DATE
+> Task :classes UP-TO-DATE
+
+> Task :compileTestJava
+/Users/ijimin/Desktop/Ticket_JAVARA/src/test/java/com/example/ticket_javara/domain/booking/service/BookingConfirmServiceTest.java:89: error: cannot find symbol
+        verify(booking).confirm(anyString());
+                                ^
+  symbol:   method anyString()
+  location: class BookingConfirmServiceTest
+/Users/ijimin/Desktop/Ticket_JAVARA/src/test/java/com/example/ticket_javara/domain/search/service/SearchServiceRedisTest.java:82: error: cannot find symbol
+        lenient().when(seatRepository.countAvailableSeatsByEventId(anyLong()))
+                                     ^
+  symbol:   method countAvailableSeatsByEventId(long)
+  location: variable seatRepository of type SeatRepository
+/Users/ijimin/Desktop/Ticket_JAVARA/src/test/java/com/example/ticket_javara/domain/search/service/SearchServiceCacheAndPopularTest.java:145: error: cannot find symbol
+        lenient().when(seatRepository.countAvailableSeatsByEventId(anyLong())).thenReturn(200L);
+                                     ^
+  symbol:   method countAvailableSeatsByEventId(long)
+  location: variable seatRepository of type SeatRepository
+/Users/ijimin/Desktop/Ticket_JAVARA/src/test/java/com/example/ticket_javara/domain/search/service/SearchServiceV1Test.java:175: error: cannot find symbol
+            given(seatRepository.countAvailableSeatsByEventId(any())).willReturn(200L);
+                                ^
+  symbol:   method countAvailableSeatsByEventId(Object)
+  location: variable seatRepository of type SeatRepository
+/Users/ijimin/Desktop/Ticket_JAVARA/src/test/java/com/example/ticket_javara/domain/search/service/SearchServiceV1Test.java:201: error: cannot find symbol
+            given(seatRepository.countAvailableSeatsByEventId(any())).willReturn(200L);
+                                ^
+  symbol:   method countAvailableSeatsByEventId(Object)
+  location: variable seatRepository of type SeatRepository
+/Users/ijimin/Desktop/Ticket_JAVARA/src/test/java/com/example/ticket_javara/domain/search/service/SearchServiceV1Test.java:230: error: cannot find symbol
+            given(seatRepository.countAvailableSeatsByEventId(any())).willReturn(200L);
+                                ^
+  symbol:   method countAvailableSeatsByEventId(Object)
+  location: variable seatRepository of type SeatRepository
+/Users/ijimin/Desktop/Ticket_JAVARA/src/test/java/com/example/ticket_javara/domain/search/service/SearchServiceV1Test.java:260: error: cannot find symbol
+            given(seatRepository.countAvailableSeatsByEventId(any())).willReturn(200L);
+                                ^
+  symbol:   method countAvailableSeatsByEventId(Object)
+  location: variable seatRepository of type SeatRepository
+/Users/ijimin/Desktop/Ticket_JAVARA/src/test/java/com/example/ticket_javara/domain/search/service/SearchServiceV1Test.java:291: error: cannot find symbol
+            given(seatRepository.countAvailableSeatsByEventId(any())).willReturn(200L);
+                                ^
+  symbol:   method countAvailableSeatsByEventId(Object)
+  location: variable seatRepository of type SeatRepository
+/Users/ijimin/Desktop/Ticket_JAVARA/src/test/java/com/example/ticket_javara/domain/search/service/SearchServiceV1Test.java:360: error: cannot find symbol
+            given(seatRepository.countAvailableSeatsByEventId(any())).willReturn(200L);
+                                ^
+  symbol:   method countAvailableSeatsByEventId(Object)
+  location: variable seatRepository of type SeatRepository
+/Users/ijimin/Desktop/Ticket_JAVARA/src/test/java/com/example/ticket_javara/domain/search/service/SearchServiceV1Test.java:383: error: cannot find symbol
+            given(seatRepository.countAvailableSeatsByEventId(any())).willReturn(200L);
+                                ^
+  symbol:   method countAvailableSeatsByEventId(Object)
+  location: variable seatRepository of type SeatRepository
+/Users/ijimin/Desktop/Ticket_JAVARA/src/test/java/com/example/ticket_javara/domain/search/service/SearchServiceV1Test.java:407: error: cannot find symbol
+            given(seatRepository.countAvailableSeatsByEventId(any())).willReturn(200L);
+                                ^
+  symbol:   method countAvailableSeatsByEventId(Object)
+  location: variable seatRepository of type SeatRepository
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: Some input files use unchecked or unsafe operations.
+Note: Recompile with -Xlint:unchecked for details.
+11 errors
+
+> Task :compileTestJava FAILED
+
+[Incubating] Problems report is available at: file:///Users/ijimin/Desktop/Ticket_JAVARA/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':compileTestJava'.
+> Compilation failed; see the compiler output below.
+  /Users/ijimin/Desktop/Ticket_JAVARA/src/test/java/com/example/ticket_javara/domain/booking/service/BookingConfirmServiceTest.java:89: error: cannot find symbol
+          verify(booking).confirm(anyString());
+                                  ^
+    symbol:   method anyString()
+    location: class BookingConfirmServiceTest
+  11 errors
+
+* Try:
+> Check your code and dependencies to fix the compilation error(s)
+> Run with --scan to get full insights from a Build Scan (powered by Develocity).
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.4.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 4s
+3 actionable tasks: 1 executed, 2 up-to-date
