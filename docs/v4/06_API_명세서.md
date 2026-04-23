@@ -1,8 +1,11 @@
 # 📡 API 명세서 — TicketFlow
 
 > **문서 버전:** v4.0
-> **최종 수정일:** 2026-04-10
+> **최종 수정일:** 2026-04-23
 > **변경 사유:**
+> - FN-EVT-05: PATCH /api/admin/events/{eventId}/status 엔드포인트 추가 (이벤트 Soft Delete)
+> - 이벤트 섹션 API 목록 표에 상태 변경 엔드포인트 추가
+> - 전체 API 요약 인덱스 (#28) 추가
 > - C-01: holdToken Redis 역조회 키 구조 추가 (A안 — `holdToken:{uuid}` 키)
 > - C-02: 쿠폰 발급 503 케이스를 "Redis 연결 자체 실패"로 재정의
 > - C-03: 주문 취소 시 USER_COUPON 복원에 SELECT ... FOR UPDATE 명시
@@ -223,6 +226,7 @@
 | POST | `/api/admin/events` | 이벤트 등록 | `{ title, category, venueId, eventDate, sections[] }` | `201 { eventId, title }` | 🔐👑 | UC-004 |
 | GET | `/api/events` | 이벤트 목록 조회 💾 | `?page&size&sort&category` | `200 Page<EventSummary>` | 🔓 | UC-004/005 |
 | GET | `/api/events/{eventId}` | 이벤트 상세 조회 💾 | — | `200 EventDetail` | 🔓 | UC-005 |
+| PATCH | `/api/admin/events/{eventId}/status` | 이벤트 상태 변경 (Soft Delete 포함) | `{ status }` | `200 { eventId, status }` | 🔐👑 | UC-004 |
 
 ### POST /api/admin/events
 
@@ -346,6 +350,53 @@
 
 **Error Cases**
 ```json
+// 404 — 이벤트 없음
+{ "status": 404, "code": "EVENT_NOT_FOUND", "message": "존재하지 않는 이벤트입니다." }
+```
+
+---
+
+### PATCH /api/admin/events/{eventId}/status
+
+> 관리자만 호출 가능 (ADMIN 권한 필수)
+> DELETED 상태로 전환 시 ACTIVE_BOOKING 존재 여부 확인 후 차단
+> 상태 전환 규칙 위반 시 400 반환 (E010)
+
+**Request**
+```json
+{
+  "status": "DELETED"
+}
+```
+
+**허용 status 값:** `ON_SALE`, `SOLD_OUT`, `CANCELLED`, `DELETED`
+(`ENDED`는 스케줄러 전용 — 직접 입력 불가)
+
+**Response 200 OK**
+```json
+{
+  "eventId": 42,
+  "status": "DELETED"
+}
+```
+
+**Error Cases**
+```json
+// 400 — 이미 삭제됨
+{ "status": 400, "code": "EVENT_ALREADY_DELETED", "message": "이미 삭제된 이벤트입니다." }
+
+// 400 — 허용되지 않는 상태 전환
+{ "status": 400, "code": "EVENT_INVALID_STATUS_TRANSITION", "message": "허용되지 않는 상태 전환입니다." }
+
+// 400 — 잘못된 status 값 입력 (예: "WRONG_VALUE")
+{ "status": 400, "code": "INVALID_REQUEST", "message": "요청 바디 형식이 올바르지 않습니다. (허용되지 않는 값 또는 JSON 형식 오류)" }
+
+// 409 — 확정 예매 존재
+{ "status": 409, "code": "EVENT_HAS_CONFIRMED_BOOKING", "message": "확정된 예매가 존재하는 이벤트는 삭제할 수 없습니다." }
+
+// 403 — 권한 없음
+{ "status": 403, "code": "ADMIN_ONLY", "message": "관리자 권한이 필요합니다." }
+
 // 404 — 이벤트 없음
 { "status": 404, "code": "EVENT_NOT_FOUND", "message": "존재하지 않는 이벤트입니다." }
 ```
@@ -1109,6 +1160,7 @@ heart-beat:10000,10000
 | 25 | POST | `/api/search/popular/click` | 인기 검색어 클릭 점수 반영 | 🔐 | ZINCRBY, 1시간 1회 제한 |
 | 26 | GET | `/api/admin/chat/rooms` | 관리자 채팅방 목록 조회 | 🔐👑 | 초기 로딩용 |
 | 27 | PATCH | `/api/admin/bookings/{bookingId}/confirm` | 예매 수동 확정 | 🔐👑 | ⚠️ FOR UPDATE |
+| 28 | PATCH | `/api/admin/events/{eventId}/status` | 이벤트 상태 변경 (Soft Delete) | 🔐👑 | DELETED 시 예매 존재 여부 확인 |
 
 ---
 
