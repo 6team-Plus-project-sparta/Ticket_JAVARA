@@ -1,9 +1,12 @@
 package com.example.ticket_javara.domain.event.service;
 
+import com.example.ticket_javara.domain.booking.repository.ActiveBookingRepository;
 import com.example.ticket_javara.domain.event.dto.request.EventCreateRequestDto;
+import com.example.ticket_javara.domain.event.dto.request.EventStatusUpdateRequestDto;
 import com.example.ticket_javara.domain.event.dto.request.SectionCreateDto;
 import com.example.ticket_javara.domain.event.dto.response.EventCreateResponseDto;
 import com.example.ticket_javara.domain.event.dto.response.EventDetailResponseDto;
+import com.example.ticket_javara.domain.event.dto.response.EventStatusUpdateResponseDto;
 import com.example.ticket_javara.domain.event.dto.response.SeatResponseDto;
 import com.example.ticket_javara.domain.event.entity.*;
 import com.example.ticket_javara.domain.event.repository.EventRepository;
@@ -13,6 +16,7 @@ import com.example.ticket_javara.domain.event.repository.VenueRepository;
 import com.example.ticket_javara.domain.search.dto.response.EventSummaryResponseDto;
 import com.example.ticket_javara.domain.user.entity.User;
 import com.example.ticket_javara.domain.user.repository.UserRepository;
+import com.example.ticket_javara.global.exception.ConflictException;
 import com.example.ticket_javara.global.exception.ErrorCode;
 import com.example.ticket_javara.global.exception.InvalidRequestException;
 import com.example.ticket_javara.global.exception.NotFoundException;
@@ -42,9 +46,9 @@ public class EventService {
     private final SectionRepository sectionRepository;
     private final SeatRepository seatRepository;
     private final UserRepository userRepository;
-    private final ApplicationEventPublisher eventPublisher;
     private final RedisTemplate<String, String> redisTemplate;
     private final EventDetailCacheService eventDetailCacheService; // BUG-01: 캐시 전용 Bean 분리
+    private final ActiveBookingRepository activeBookingRepository;
 
     @Transactional
     @CacheEvict(value = "event-search", allEntries = true)
@@ -163,23 +167,16 @@ public class EventService {
     public Page<EventSummaryResponseDto> getEventList(EventCategory category, EventStatus status, Pageable pageable) {
         Page<Event> events;
 
-//        if (category != null && status != null) {
-//            events = eventRepository.findByCategoryAndStatus(category, status, pageable);
-//        } else if (category != null) {
-//            events = eventRepository.findByCategory(category, pageable);
-//        } else if (status != null) {
-//            events = eventRepository.findByStatus(status, pageable);
-//        } else {
-//            events = eventRepository.findAll(pageable);
-//        }
+        //삭제된 이벤트가 아닌지 확인
+        EventStatus safeStatus = (status == EventStatus.DELETED) ? null : status;
 
         // venue만 fetch join (sections fetch join 제거 → HHH90003004 경고 해결)
-        if (category != null && status != null) {
-            events = eventRepository.findByCategoryAndStatusWithVenueAndSections(category, status, pageable);
+        if (category != null && safeStatus != null) {
+            events = eventRepository.findByCategoryAndStatusWithVenueAndSections(category, safeStatus, pageable);
         } else if (category != null) {
             events = eventRepository.findByCategoryWithVenueAndSections(category, pageable);
-        } else if (status != null) {
-            events = eventRepository.findByStatusWithVenueAndSections(status, pageable);
+        } else if (safeStatus != null) {
+            events = eventRepository.findByStatusWithVenueAndSections(safeStatus, pageable);
         } else {
             events = eventRepository.findAllWithVenueAndSections(pageable);
         }
@@ -239,7 +236,7 @@ public class EventService {
     public SeatResponseDto getSeatsByEventId(Long eventId, Long sectionId) {
 
         // 1. 이벤트 존재 여부 확인
-        Event event = eventRepository.findByIdWithVenue(eventId)
+        Event event = eventRepository.findByIdWithVenueExcludeDeleted(eventId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.EVENT_NOT_FOUND));
 
         // 2. 좌석 목록 조회 (섹션 필터 분기)
@@ -310,4 +307,37 @@ public class EventService {
 
         return SeatResponseDto.SeatStatus.AVAILABLE;
     }
+
+    /**
+     * 이벤트 상태 변경 (FN-EVT-05)
+     * - 관리자 권한 체크는 컨트롤러에서 처리 (기존 createEvent 패턴과 동일)
+     * - DELETED 요청 시 ACTIVE_BOOKING 존재 여부 확인 후 차단
+     */
+    @Transactional
+    @CacheEvict(value = {"event-search", "event-detail"}, allEntries = true)
+    public EventStatusUpdateResponseDto updateEventStatus(Long eventId,
+                                                          EventStatusUpdateRequestDto requestDto) {
+        // 1. 이벤트 조회 (DELETED 포함해서 findById — 이미 삭제된 이벤트 재시도 방어용)
+        Event event = eventRepository.findByIdForUpdate(eventId)
+                .orElseThrow(() -> new NotFoundException(ErrorCode.EVENT_NOT_FOUND));
+
+        // 2. 이미 삭제된 이벤트 재삭제 방어
+        if (event.getStatus() == EventStatus.DELETED) {
+            throw new InvalidRequestException(ErrorCode.EVENT_ALREADY_DELETED);
+        }
+
+        // 3. DELETED 요청 시 — 확정 예매 존재 여부 확인
+        if (requestDto.getStatus() == EventStatus.DELETED) {
+            boolean hasConfirmedBooking = activeBookingRepository.existsByEventId(eventId);
+            if (hasConfirmedBooking) {
+                throw new ConflictException(ErrorCode.EVENT_HAS_CONFIRMED_BOOKING);
+            }
+        }
+
+        // 4. 상태 변경 (Dirty Checking — JPA가 트랜잭션 종료 시 UPDATE 자동 실행)
+        event.updateStatus(requestDto.getStatus());
+
+        return EventStatusUpdateResponseDto.of(eventId, requestDto.getStatus());
+    }
+
 }

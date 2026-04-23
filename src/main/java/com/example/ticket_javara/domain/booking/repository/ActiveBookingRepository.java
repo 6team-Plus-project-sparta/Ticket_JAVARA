@@ -21,6 +21,11 @@ public interface ActiveBookingRepository extends JpaRepository<ActiveBooking, Lo
     /** CONFIRMED 여부 확인 — Hold 전 분산락 내부에서 호출 */
     boolean existsBySeatId(Long seatId);
 
+    // 이벤트 삭제 전 확정 예매 존재 여부 확인 : ACTIVE_BOOKING → BOOKING → event_id 경로로 조회
+    @Query("SELECT COUNT(ab) > 0 FROM ActiveBooking ab " +
+            "WHERE ab.booking.event.eventId = :eventId")
+    boolean existsByEventId(@Param("eventId") Long eventId);
+
     /**
      * 단일 좌석 취소 시 삭제 (단건 처리용)
      * 여러 좌석 일괄 삭제 시에는 deleteAllBySeatIdIn() 사용

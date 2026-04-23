@@ -40,7 +40,7 @@ public class EventDetailCacheService {
      */
     @Cacheable(value = "event-detail", key = "#eventId")
     public EventDetailResponseDto getCachedEventDetail(Long eventId) {
-        Event event = eventRepository.findByIdWithVenueAndSections(eventId)
+        Event event = eventRepository.findByIdWithVenueAndSectionsExcludeDeleted(eventId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.EVENT_NOT_FOUND));
 
         List<EventDetailResponseDto.SectionDetailDto> sectionDtos = event.getSections().stream()
