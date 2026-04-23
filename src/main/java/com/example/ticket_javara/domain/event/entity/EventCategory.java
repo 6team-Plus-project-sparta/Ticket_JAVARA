@@ -7,5 +7,7 @@ public enum EventCategory {
     CONCERT,    // 콘서트
     MUSICAL,    // 뮤지컬
     THEATER,    // 연극
-    SPORTS      // 스포츠
+    DISPLAY,    // 전시
+    SPORTS,     // 스포츠
+    ETC         // 기타
 }

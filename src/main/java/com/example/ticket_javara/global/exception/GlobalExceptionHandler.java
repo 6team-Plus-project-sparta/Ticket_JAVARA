@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -40,6 +41,19 @@ public class GlobalExceptionHandler {
                 .badRequest()
                 .body(ErrorResponse.of(ErrorCode.INVALID_REQUEST,
                         String.format("'%s' 파라미터 값이 올바르지 않습니다.", e.getName())));
+    }
+
+    // ── 3-1. @RequestBody enum 역직렬화 실패 ────────────────────────────────────
+    //         예: { "status": "WRONG_VALUE" } 입력 시 Jackson이 던지는 예외
+    //         미처리 시 6번 폴백(500)으로 떨어지므로 400으로 명시적 처리
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException e) {
+        log.warn("잘못된 요청 바디: {}", e.getMessage());
+        return ResponseEntity
+                .badRequest()
+                .body(ErrorResponse.of(ErrorCode.INVALID_REQUEST,
+                        "요청 바디 형식이 올바르지 않습니다. (허용되지 않는 값 또는 JSON 형식 오류)"));
     }
 
     // ── 4. 지원하지 않는 HTTP 메서드 ────────────────────────────────────────────

@@ -41,6 +41,11 @@ public enum ErrorCode {
     SECTION_NOT_FOUND(HttpStatus.NOT_FOUND, "E005", "존재하지 않는 구역입니다."),
     SEAT_NOT_FOUND(HttpStatus.NOT_FOUND, "E006", "존재하지 않는 좌석입니다."),
     EVENT_FORBIDDEN(HttpStatus.FORBIDDEN, "E007", "이벤트 관리 권한이 없습니다."),
+    EVENT_ALREADY_DELETED(HttpStatus.BAD_REQUEST, "E008", "이미 삭제된 이벤트입니다."),
+    EVENT_HAS_CONFIRMED_BOOKING(HttpStatus.CONFLICT, "E009",
+            "확정된 예매가 존재하는 이벤트는 삭제할 수 없습니다."),
+    EVENT_INVALID_STATUS_TRANSITION(HttpStatus.BAD_REQUEST, "E010",
+            "허용되지 않는 상태 전환입니다."),
 
     // ──────────────────────────────────────────────────
     // S: 좌석/Hold (Seat)

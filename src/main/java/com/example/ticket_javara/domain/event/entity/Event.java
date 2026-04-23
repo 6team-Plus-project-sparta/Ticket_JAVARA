@@ -2,6 +2,8 @@ package com.example.ticket_javara.domain.event.entity;
 
 import com.example.ticket_javara.domain.user.entity.User;
 import com.example.ticket_javara.global.common.BaseTimeEntity;
+import com.example.ticket_javara.global.exception.ErrorCode;
+import com.example.ticket_javara.global.exception.InvalidRequestException;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -12,6 +14,8 @@ import org.hibernate.annotations.BatchSize;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * EVENT 테이블 엔티티
@@ -93,8 +97,20 @@ public class Event extends BaseTimeEntity {
         this.thumbnailUrl = thumbnailUrl;
     }
 
+    //상태 전환 규칙
+    private static final Map<EventStatus, Set<EventStatus>> ALLOWED_TRANSITIONS = Map.of(
+            EventStatus.ON_SALE,   Set.of(EventStatus.SOLD_OUT, EventStatus.CANCELLED, EventStatus.DELETED),
+            EventStatus.SOLD_OUT,  Set.of(EventStatus.ON_SALE, EventStatus.CANCELLED, EventStatus.DELETED),
+            EventStatus.CANCELLED, Set.of(EventStatus.DELETED),
+            EventStatus.ENDED,     Set.of(EventStatus.DELETED)
+    );
+
     /** 이벤트 상태 변경 */
     public void updateStatus(EventStatus newStatus) {
+        Set<EventStatus> allowed = ALLOWED_TRANSITIONS.getOrDefault(this.status, Set.of());
+        if (!allowed.contains(newStatus)) {
+            throw new InvalidRequestException(ErrorCode.EVENT_INVALID_STATUS_TRANSITION);
+        }
         this.status = newStatus;
     }
 }
