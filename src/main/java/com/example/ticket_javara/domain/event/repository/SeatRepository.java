@@ -17,10 +17,25 @@ public interface SeatRepository extends JpaRepository<Seat, Long> {
      * 이벤트의 좌석 중 CONFIRMED 아닌(ACTIVE_BOOKING 없는) 좌석 수 조회
      * FN-SEAT-01: 잔여 좌석 수 계산
      */
-    @Query("SELECT COUNT(s) FROM Seat s " +
-           "WHERE s.section.event.eventId = :eventId " +
-           "AND NOT EXISTS (SELECT 1 FROM ActiveBooking ab WHERE ab.seatId = s.seatId)")
-    long countAvailableSeatsByEventId(@Param("eventId") Long eventId);
+//    @Query("SELECT COUNT(s) FROM Seat s " +
+//           "WHERE s.section.event.eventId = :eventId " +
+//           "AND NOT EXISTS (SELECT 1 FROM ActiveBooking ab WHERE ab.seatId = s.seatId)")
+//    long countAvailableSeatsByEventId(@Param("eventId") Long eventId);
+
+    // 이벤트 목록(위코드에서) N+1 해결한 버전 — 여러 eventId의 잔여좌석을 쿼리 1번에 조회
+// Map<eventId, 잔여좌석수> 형태로 반환
+    @Query("""
+    SELECT s.section.event.eventId, COUNT(s)
+    FROM Seat s
+    WHERE s.section.event.eventId IN :eventIds
+    AND NOT EXISTS (
+        SELECT ab FROM ActiveBooking ab
+        WHERE ab.seatId = s.seatId
+    )
+    GROUP BY s.section.event.eventId
+    """)
+    // Spring Data JPA는 Map 반환 미지원 → List<Object[]> 로 받아야 함
+    List<Object[]> countAvailableSeatsByEventIds(@Param("eventIds") List<Long> eventIds);
 
     // 이벤트 목록(위코드에서) N+1 해결한 버전 — 여러 eventId의 잔여좌석을 쿼리 1번에 조회
 // Map<eventId, 잔여좌석수> 형태로 반환
