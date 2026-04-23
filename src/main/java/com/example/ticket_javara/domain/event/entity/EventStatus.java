@@ -7,5 +7,6 @@ public enum EventStatus {
     ON_SALE,    // 판매 중
     SOLD_OUT,   // 매진
     CANCELLED,  // 취소됨
-    ENDED       // 종료됨
-}
+    ENDED,      // 종료됨
+    DELETED     // 삭제됨
+    }

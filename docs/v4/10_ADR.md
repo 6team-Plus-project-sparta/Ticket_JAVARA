@@ -1,9 +1,9 @@
 # 📋 ADR (Architecture Decision Records) — TicketFlow
 
 > **형식:** 결정마다 1개 ADR
-> **문서 버전:** v1.0
-> **최종 수정일:** 2026-04-10
-> **연결 문서:** 1. 프로젝트 개요서 v3.0, 4. 기능명세서 v3.0, 5. ERD v6.0, 6. API 명세서 v1.0
+> **문서 버전:** v1.3
+> **최종 수정일:** 2026-04-23
+> **연결 문서:** 1. 프로젝트 개요서 v3.0, 4. 기능명세서 v4.0, 5. ERD v7.0, 6. API 명세서 v4.0
 
 ---
 
@@ -844,7 +844,81 @@ Hold 성공 시 Redis 저장:
 | 스케줄러 장애 시 | 다음 정각 실행 시 자동 복구 (누적 미전환 건 일괄 처리) |
 
 ---
+## ADR-015. 이벤트 삭제 방식 — Soft Delete (DELETED 상태 전환)
 
+| 항목 | 내용 |
+|------|------|
+| **날짜** | 2026-04-23 |
+| **상태** | 승인됨 |
+| **결정자** | 팀원 B |
+| **관련 기능** | FN-EVT-05 |
+| **관련 API** | `PATCH /api/admin/events/{eventId}/status` |
+| **관련 문서** | 기능명세서 v5.0 §FN-EVT-05, ERD v7.0 §2-4 |
+
+### 컨텍스트
+
+관리자가 잘못 등록된 이벤트를 노출 중단해야 하는 요구사항이 발생했다.
+이를 물리 삭제(DELETE)로 구현할지, Soft Delete로 구현할지 결정해야 한다.
+
+### 비교
+
+| 항목 | 물리 삭제 (DELETE 엔드포인트) | Soft Delete (DELETED 상태 전환) |
+|------|------------------------------|-------------------------------|
+| FK 정합성 | ❌ BOOKING.event_id 깨짐 | ✅ 유지 |
+| 예매 이력 보존 | ❌ 불가 | ✅ BOOKING 이력 유지 |
+| 구현 복잡도 | 높음 (CASCADE 처리 필요) | 낮음 (status 필터 추가) |
+| ADR-012 철학 일관성 | ❌ | ✅ 상태 전이 방식으로 일관 |
+| 복구 가능성 | 불가 | 가능 (status 재변경) |
+| 조회 필터링 | 별도 처리 없음 | `WHERE status != 'DELETED'` 추가 |
+
+### 결정
+
+**Soft Delete — `PATCH /api/admin/events/{eventId}/status` 로 status를 `DELETED`로 전환**
+
+### 이유
+
+1. **FK 보호**: 물리 삭제 시 BOOKING.event_id FK가 깨져 예매 이력 훼손
+2. **ADR-012 일관성**: 주문 취소(CANCELLED)도 상태 전이로 처리한 것과 동일한 철학 유지
+3. **안전 장치**: ACTIVE_BOOKING 존재 시 삭제 차단 — 확정 예매가 있는 이벤트는 삭제 불가
+4. **조회 단순**: `WHERE status != 'DELETED'` 한 줄 추가로 목록/상세/좌석 조회에서 일괄 제외
+
+### 상태 전환 규칙 (E010)
+
+무분별한 역전환 방지를 위해 허용 가능한 전환만 명시적으로 정의한다.
+
+| 현재 상태 | 전환 가능 | 전환 불가 |
+|----------|----------|----------|
+| `ON_SALE` | `SOLD_OUT`, `CANCELLED`, `DELETED` | `ENDED` (스케줄러 전용) |
+| `SOLD_OUT` | `ON_SALE`, `CANCELLED`, `DELETED` | `ENDED` (스케줄러 전용) |
+| `CANCELLED` | `DELETED` | `ON_SALE`, `SOLD_OUT`, `ENDED` |
+| `ENDED` | `DELETED` | `ON_SALE`, `SOLD_OUT`, `CANCELLED` |
+| `DELETED` | 전환 불가 | 모든 상태 |
+
+### 잘못된 요청 바디 방어 (GlobalExceptionHandler)
+
+`{"status": "WRONG_VALUE"}` 같은 허용되지 않는 enum 값 입력 시
+기존 500 → 400으로 처리되도록 `HttpMessageNotReadableException` 핸들러 추가.
+
+```java
+@ExceptionHandler(HttpMessageNotReadableException.class)
+public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(
+        HttpMessageNotReadableException e) {
+    log.warn("잘못된 요청 바디: {}", e.getMessage());
+    return ResponseEntity
+            .badRequest()
+            .body(ErrorResponse.of(ErrorCode.INVALID_REQUEST,
+                    "요청 바디 형식이 올바르지 않습니다. (허용되지 않는 값 또는 JSON 형식 오류)"));
+}
+```
+
+### 트레이드오프
+
+| 상황 | 대응 |
+|------|------|
+| DELETED 이벤트가 DB에 계속 누적 | MVP 범위에서는 무시 가능. 향후 일정 기간 경과 후 물리 삭제하는 배치 정책 추가 검토 |
+| DELETED 후 복구 요청 | 이번 스코프에서는 DB 직접 수정으로 처리. v2에서 복구 API 추가 검토 |
+
+---
 ## 주요 변경 이력
 
 | 버전 | ADR | 변경 내용 | 일자 |
@@ -852,3 +926,4 @@ Hold 성공 시 Redis 저장:
 | v1.0 | 전체 | 최초 작성 | 2026-04-10 |
 | v1.1 | ADR-002 | Lettuce → Redisson 전환 전략을 코드 직접 교체 방식에서 **Feature Flag (`lock.provider`) 방식**으로 개정. `DistributedLockProvider` 인터페이스 추상화, `LockConfig` Bean 전환 구조, 전환 절차 추가 | 2026-04-13 |
 | v1.2 | ADR-014 | 이벤트 ENDED 상태 자동 전환 스케줄러 결정 추가 | 2026-04-17 |
+| v1.3 | ADR-015 | 이벤트 Soft Delete (DELETED 상태 전환) 결정 추가. 상태 전환 규칙(E010) 및 HttpMessageNotReadableException 핸들러 추가 반영 | 2026-04-23 |
