@@ -15,19 +15,17 @@ import org.springframework.data.domain.Sort;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * EventRepository QueryDSL 구현체
  * - DB 레벨에서 LEFT JOIN + GROUP BY로 minPrice 계산 및 정렬
  * - 페이징도 DB 레벨에서 완료
+ * - remainingSeats는 Service 계층에서 처리 (Repository 간 의존성 제거)
  */
 @RequiredArgsConstructor
 public class EventRepositoryImpl implements EventRepositoryCustom {
 
     private final JPAQueryFactory queryFactory;
-    private final SeatRepository seatRepository;
 
     @Override
     public Page<EventSummaryResponseDto> findEventsWithMinPrice(
@@ -39,10 +37,12 @@ public class EventRepositoryImpl implements EventRepositoryCustom {
         QVenue venue = QVenue.venue;
         QSection section = QSection.section;
 
-        // 전체 개수 조회
+        // 전체 개수 조회 (Content 쿼리와 동일한 JOIN 조건 유지)
         Long totalCount = queryFactory
-                .select(event.count())
+                .select(event.countDistinct())
                 .from(event)
+                .join(event.venue, venue)
+                .leftJoin(event.sections, section)
                 .where(
                         categoryEq(category),
                         statusEq(status),
@@ -66,53 +66,24 @@ public class EventRepositoryImpl implements EventRepositoryCustom {
                         venue.name,
                         event.eventDate,
                         section.price.min().coalesce(0), // DB에서 바로 최저가 계산
-                        Expressions.constant(0L), // remainingSeats는 별도 조회
+                        Expressions.constant(0L), // remainingSeats는 Service에서 설정
                         event.thumbnailUrl,
                         event.status
                 ))
                 .from(event)
                 .join(event.venue, venue)
-                .leftJoin(event.sections, section) // Section과 LEFT JOIN
+                .leftJoin(event.sections, section)
                 .where(
                         categoryEq(category),
                         statusEq(status),
                         event.status.ne(EventStatus.DELETED)
                 )
                 .groupBy(event.eventId, event.title, event.category, venue.name, 
-                         event.eventDate, event.thumbnailUrl, event.status) // GROUP BY 필수
+                         event.eventDate, event.thumbnailUrl, event.status)
                 .orderBy(getOrderSpecifiers(pageable, event, section).toArray(new OrderSpecifier[0]))
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch();
-
-        // remainingSeats 일괄 조회 및 설정
-        if (!content.isEmpty()) {
-            List<Long> eventIds = content.stream()
-                    .map(EventSummaryResponseDto::getEventId)
-                    .toList();
-
-            List<Object[]> seatCounts = seatRepository.countAvailableSeatsByEventIds(eventIds);
-            Map<Long, Long> seatCountMap = seatCounts.stream()
-                    .collect(Collectors.toMap(
-                            row -> (Long) row[0],
-                            row -> (Long) row[1]
-                    ));
-
-            // Builder를 사용하여 새 객체 생성 (불변성 유지)
-            content = content.stream()
-                    .map(dto -> EventSummaryResponseDto.builder()
-                            .eventId(dto.getEventId())
-                            .title(dto.getTitle())
-                            .category(dto.getCategory())
-                            .venueName(dto.getVenueName())
-                            .eventDate(dto.getEventDate())
-                            .minPrice(dto.getMinPrice())
-                            .remainingSeats(seatCountMap.getOrDefault(dto.getEventId(), 0L))
-                            .thumbnailUrl(dto.getThumbnailUrl())
-                            .eventStatus(dto.getEventStatus())
-                            .build())
-                    .collect(Collectors.toList());
-        }
 
         return new PageImpl<>(content, pageable, total);
     }

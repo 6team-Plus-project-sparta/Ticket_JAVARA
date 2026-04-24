@@ -169,68 +169,91 @@ public class EventService {
 
         Sort.Order minPriceOrder = pageable.getSort().getOrderFor("minPrice");
 
+        Page<EventSummaryResponseDto> result;
+
         // minPrice 정렬이 필요한 경우, QueryDSL로 DB 레벨에서 처리
         if (minPriceOrder != null) {
-            return eventRepository.findEventsWithMinPrice(category, safeStatus, pageable);
-        }
-
-        // minPrice 정렬이 아닌 경우, 기존 로직 (DB에서 직접 정렬 + 페이징)
-        Page<Event> events;
-
-        if (category != null && safeStatus != null) {
-            events = eventRepository.findByCategoryAndStatusWithVenueAndSections(category, safeStatus, pageable);
-        } else if (category != null) {
-            events = eventRepository.findByCategoryWithVenueAndSections(category, pageable);
-        } else if (safeStatus != null) {
-            events = eventRepository.findByStatusWithVenueAndSections(safeStatus, pageable);
+            result = eventRepository.findEventsWithMinPrice(category, safeStatus, pageable);
         } else {
-            events = eventRepository.findAllWithVenueAndSections(pageable);
+            // minPrice 정렬이 아닌 경우, 기존 로직 (DB에서 직접 정렬 + 페이징)
+            Page<Event> events;
+
+            if (category != null && safeStatus != null) {
+                events = eventRepository.findByCategoryAndStatusWithVenueAndSections(category, safeStatus, pageable);
+            } else if (category != null) {
+                events = eventRepository.findByCategoryWithVenueAndSections(category, pageable);
+            } else if (safeStatus != null) {
+                events = eventRepository.findByStatusWithVenueAndSections(safeStatus, pageable);
+            } else {
+                events = eventRepository.findAllWithVenueAndSections(pageable);
+            }
+
+            // eventId 목록 추출 → 잔여좌석 수 쿼리 1번에 일괄 조회 (N+1 제거)
+            List<Long> eventIds = events.getContent().stream()
+                    .map(Event::getEventId)
+                    .toList();
+
+            // sections 일괄 조회 → Map<eventId, List<Section>> (쿼리 1번)
+            Map<Long, List<Section>> sectionMap = sectionRepository.findAllByEventIds(eventIds)
+                    .stream()
+                    .collect(Collectors.groupingBy(s -> s.getEvent().getEventId()));
+
+            // 잔여좌석 일괄 조회 → Map<eventId, remainingSeats> (쿼리 1번)
+            Map<Long, Long> remainingSeatMap = seatRepository.countAvailableSeatsByEventIds(eventIds)
+                    .stream()
+                    .collect(Collectors.toMap(
+                            row -> (Long) row[0],
+                            row -> (Long) row[1]
+                    ));
+
+            List<EventSummaryResponseDto> content = events.getContent().stream()
+                    .map(event -> {
+                        List<Section> sections = sectionMap.getOrDefault(event.getEventId(), List.of());
+
+                        int minPrice = sections.stream()
+                                .mapToInt(Section::getPrice)
+                                .min()
+                                .orElse(0);
+
+                        long remainingSeats = remainingSeatMap.getOrDefault(event.getEventId(), 0L);
+
+                        return EventSummaryResponseDto.builder()
+                                .eventId(event.getEventId())
+                                .title(event.getTitle())
+                                .category(event.getCategory())
+                                .venueName(event.getVenue().getName())
+                                .eventDate(event.getEventDate())
+                                .minPrice(minPrice)
+                                .remainingSeats(remainingSeats)
+                                .thumbnailUrl(event.getThumbnailUrl())
+                                .eventStatus(event.getStatus())
+                                .build();
+                    })
+                    .collect(Collectors.toList());
+
+            result = new PageImpl<>(content, pageable, events.getTotalElements());
         }
 
-        // eventId 목록 추출 → 잔여좌석 수 쿼리 1번에 일괄 조회 (N+1 제거)
-        List<Long> eventIds = events.getContent().stream()
-                .map(Event::getEventId)
-                .toList();
+        // remainingSeats 일괄 조회 및 업데이트 (minPrice 정렬인 경우)
+        if (minPriceOrder != null && !result.getContent().isEmpty()) {
+            List<Long> eventIds = result.getContent().stream()
+                    .map(EventSummaryResponseDto::getEventId)
+                    .toList();
 
-        // sections 일괄 조회 → Map<eventId, List<Section>> (쿼리 1번)
-        Map<Long, List<Section>> sectionMap = sectionRepository.findAllByEventIds(eventIds)
-                .stream()
-                .collect(Collectors.groupingBy(s -> s.getEvent().getEventId()));
+            Map<Long, Long> remainingSeatMap = seatRepository.countAvailableSeatsByEventIds(eventIds)
+                    .stream()
+                    .collect(Collectors.toMap(
+                            row -> (Long) row[0],
+                            row -> (Long) row[1]
+                    ));
 
-        // 잔여좌석 일괄 조회 → Map<eventId, remainingSeats> (쿼리 1번)
-        Map<Long, Long> remainingSeatMap = seatRepository.countAvailableSeatsByEventIds(eventIds)
-                .stream()
-                .collect(Collectors.toMap(
-                        row -> (Long) row[0],
-                        row -> (Long) row[1]
-                ));
+            // DTO의 updateRemainingSeats 메서드로 업데이트
+            result.getContent().forEach(dto -> 
+                    dto.updateRemainingSeats(remainingSeatMap.getOrDefault(dto.getEventId(), 0L))
+            );
+        }
 
-        List<EventSummaryResponseDto> content = events.getContent().stream()
-                .map(event -> {
-                    List<Section> sections = sectionMap.getOrDefault(event.getEventId(), List.of());
-
-                    int minPrice = sections.stream()
-                            .mapToInt(Section::getPrice)
-                            .min()
-                            .orElse(0);
-
-                    long remainingSeats = remainingSeatMap.getOrDefault(event.getEventId(), 0L);
-
-                    return EventSummaryResponseDto.builder()
-                            .eventId(event.getEventId())
-                            .title(event.getTitle())
-                            .category(event.getCategory())
-                            .venueName(event.getVenue().getName())
-                            .eventDate(event.getEventDate())
-                            .minPrice(minPrice)
-                            .remainingSeats(remainingSeats)
-                            .thumbnailUrl(event.getThumbnailUrl())
-                            .eventStatus(event.getStatus())
-                            .build();
-                })
-                .collect(Collectors.toList());
-
-        return new PageImpl<>(content, pageable, events.getTotalElements());
+        return result;
     }
 
 
