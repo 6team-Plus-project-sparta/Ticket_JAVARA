@@ -18,7 +18,7 @@ import java.util.Optional;
  * Event 레포지토리
  * 이벤트 상세 조회에 Caffeine 캐시 적용 (TTL 10분) — CLAUDE.md §캐싱 전략
  */
-public interface EventRepository extends JpaRepository<Event, Long> {
+public interface EventRepository extends JpaRepository<Event, Long>, EventRepositoryCustom {
 
     @Deprecated // DELETED 이벤트 포함됨 — 직접 호출 금지, WithVenueAndSections 계열 사용
     Page<Event> findByStatus(EventStatus status, Pageable pageable);
