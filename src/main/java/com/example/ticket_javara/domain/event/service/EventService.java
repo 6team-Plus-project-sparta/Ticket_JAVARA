@@ -165,28 +165,26 @@ public class EventService {
     }
 
     public Page<EventSummaryResponseDto> getEventList(EventCategory category, EventStatus status, Pageable pageable) {
-        Page<Event> events;
-
         EventStatus safeStatus = (status == EventStatus.DELETED) ? null : status;
 
         Sort.Order minPriceOrder = pageable.getSort().getOrderFor("minPrice");
 
-        // minPrice 정렬이 필요한 경우, 전체 데이터를 가져와서 메모리에서 정렬 후 페이징
+        // minPrice 정렬이 필요한 경우, QueryDSL로 DB 레벨에서 처리
         if (minPriceOrder != null) {
-            return getEventListWithMinPriceSort(category, safeStatus, pageable, minPriceOrder);
+            return eventRepository.findEventsWithMinPrice(category, safeStatus, pageable);
         }
 
         // minPrice 정렬이 아닌 경우, 기존 로직 (DB에서 직접 정렬 + 페이징)
-        Pageable dbPageable = pageable;
+        Page<Event> events;
 
         if (category != null && safeStatus != null) {
-            events = eventRepository.findByCategoryAndStatusWithVenueAndSections(category, safeStatus, dbPageable);
+            events = eventRepository.findByCategoryAndStatusWithVenueAndSections(category, safeStatus, pageable);
         } else if (category != null) {
-            events = eventRepository.findByCategoryWithVenueAndSections(category, dbPageable);
+            events = eventRepository.findByCategoryWithVenueAndSections(category, pageable);
         } else if (safeStatus != null) {
-            events = eventRepository.findByStatusWithVenueAndSections(safeStatus, dbPageable);
+            events = eventRepository.findByStatusWithVenueAndSections(safeStatus, pageable);
         } else {
-            events = eventRepository.findAllWithVenueAndSections(dbPageable);
+            events = eventRepository.findAllWithVenueAndSections(pageable);
         }
 
         // eventId 목록 추출 → 잔여좌석 수 쿼리 1번에 일괄 조회 (N+1 제거)
@@ -235,82 +233,7 @@ public class EventService {
         return new PageImpl<>(content, pageable, events.getTotalElements());
     }
 
-    /**
-     * minPrice 정렬을 위한 특수 처리
-     * - minPrice는 Section 테이블에서 계산되므로 DB 쿼리에서 정렬 불가
-     * - 전체 데이터를 가져와서 메모리에서 정렬 후 페이징
-     * - 성능 고려: 최대 1000개까지만 조회
-     */
-    private Page<EventSummaryResponseDto> getEventListWithMinPriceSort(
-            EventCategory category, EventStatus status, Pageable pageable, Sort.Order minPriceOrder) {
 
-        // 정렬 없이 전체 데이터 조회 (최대 1000개)
-        Pageable unpaged = PageRequest.of(0, 1000);
-        Page<Event> events;
-
-        if (category != null && status != null) {
-            events = eventRepository.findByCategoryAndStatusWithVenueAndSections(category, status, unpaged);
-        } else if (category != null) {
-            events = eventRepository.findByCategoryWithVenueAndSections(category, unpaged);
-        } else if (status != null) {
-            events = eventRepository.findByStatusWithVenueAndSections(status, unpaged);
-        } else {
-            events = eventRepository.findAllWithVenueAndSections(unpaged);
-        }
-
-        List<Long> eventIds = events.getContent().stream()
-                .map(Event::getEventId)
-                .toList();
-
-        Map<Long, List<Section>> sectionMap = sectionRepository.findAllByEventIds(eventIds)
-                .stream()
-                .collect(Collectors.groupingBy(s -> s.getEvent().getEventId()));
-
-        Map<Long, Long> remainingSeatMap = seatRepository.countAvailableSeatsByEventIds(eventIds)
-                .stream()
-                .collect(Collectors.toMap(
-                        row -> (Long) row[0],
-                        row -> (Long) row[1]
-                ));
-
-        // 전체 데이터를 DTO로 변환
-        List<EventSummaryResponseDto> allContent = events.getContent().stream()
-                .map(event -> {
-                    List<Section> sections = sectionMap.getOrDefault(event.getEventId(), List.of());
-
-                    int minPrice = sections.stream()
-                            .mapToInt(Section::getPrice)
-                            .min()
-                            .orElse(0);
-
-                    long remainingSeats = remainingSeatMap.getOrDefault(event.getEventId(), 0L);
-
-                    return EventSummaryResponseDto.builder()
-                            .eventId(event.getEventId())
-                            .title(event.getTitle())
-                            .category(event.getCategory())
-                            .venueName(event.getVenue().getName())
-                            .eventDate(event.getEventDate())
-                            .minPrice(minPrice)
-                            .remainingSeats(remainingSeats)
-                            .thumbnailUrl(event.getThumbnailUrl())
-                            .eventStatus(event.getStatus())
-                            .build();
-                })
-                .sorted(minPriceOrder.isAscending()
-                        ? Comparator.comparingInt(EventSummaryResponseDto::getMinPrice)
-                        : Comparator.comparingInt(EventSummaryResponseDto::getMinPrice).reversed())
-                .collect(Collectors.toList());
-
-        // 메모리에서 페이징
-        int start = (int) pageable.getOffset();
-        int end = Math.min(start + pageable.getPageSize(), allContent.size());
-        List<EventSummaryResponseDto> pageContent = start < allContent.size()
-                ? allContent.subList(start, end)
-                : List.of();
-
-        return new PageImpl<>(pageContent, pageable, allContent.size());
-    }
 
     /**
      * 이벤트 ID로 구역별 좌석 상태 조회
