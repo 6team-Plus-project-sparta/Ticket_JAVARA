@@ -22,8 +22,7 @@ import com.example.ticket_javara.global.exception.InvalidRequestException;
 import com.example.ticket_javara.global.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.*;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -167,18 +166,27 @@ public class EventService {
     public Page<EventSummaryResponseDto> getEventList(EventCategory category, EventStatus status, Pageable pageable) {
         Page<Event> events;
 
-        //삭제된 이벤트가 아닌지 확인
         EventStatus safeStatus = (status == EventStatus.DELETED) ? null : status;
 
-        // venue만 fetch join (sections fetch join 제거 → HHH90003004 경고 해결)
+        Sort.Order minPriceOrder = pageable.getSort().getOrderFor("minPrice");
+
+        Pageable dbPageable = minPriceOrder != null
+                ? PageRequest.of(
+                pageable.getPageNumber(),
+                pageable.getPageSize(),
+                Sort.by(pageable.getSort().stream()
+                        .filter(order -> !order.getProperty().equals("minPrice"))
+                        .collect(Collectors.toList())))
+                : pageable;
+
         if (category != null && safeStatus != null) {
-            events = eventRepository.findByCategoryAndStatusWithVenueAndSections(category, safeStatus, pageable);
+            events = eventRepository.findByCategoryAndStatusWithVenueAndSections(category, safeStatus, dbPageable);
         } else if (category != null) {
-            events = eventRepository.findByCategoryWithVenueAndSections(category, pageable);
+            events = eventRepository.findByCategoryWithVenueAndSections(category, dbPageable);
         } else if (safeStatus != null) {
-            events = eventRepository.findByStatusWithVenueAndSections(safeStatus, pageable);
+            events = eventRepository.findByStatusWithVenueAndSections(safeStatus, dbPageable);
         } else {
-            events = eventRepository.findAllWithVenueAndSections(pageable);
+            events = eventRepository.findAllWithVenueAndSections(dbPageable);
         }
 
         // eventId 목록 추출 → 잔여좌석 수 쿼리 1번에 일괄 조회 (N+1 제거)
@@ -199,28 +207,39 @@ public class EventService {
                         row -> (Long) row[1]
                 ));
 
-        return events.map(event -> {
-            // sectionMap에서 조회 → 추가 쿼리 없음
-            List<Section> sections = sectionMap.getOrDefault(event.getEventId(), List.of());
 
-            int minPrice = sections.stream()
-                    .mapToInt(Section::getPrice)
-                    .min()
-                    .orElse(0);
 
-            long remainingSeats = remainingSeatMap.getOrDefault(event.getEventId(), 0L);
+        List<EventSummaryResponseDto> content = events.getContent().stream()
+                .map(event -> {
+                    List<Section> sections = sectionMap.getOrDefault(event.getEventId(), List.of());
 
-            return EventSummaryResponseDto.builder()
-                    .eventId(event.getEventId())
-                    .title(event.getTitle())
-                    .category(event.getCategory())
-                    .venueName(event.getVenue().getName())
-                    .eventDate(event.getEventDate())
-                    .minPrice(minPrice)
-                    .remainingSeats(remainingSeats)
-                    .thumbnailUrl(event.getThumbnailUrl())
-                    .build();
-        });
+                    int minPrice = sections.stream()
+                            .mapToInt(Section::getPrice)
+                            .min()
+                            .orElse(0);
+
+                    long remainingSeats = remainingSeatMap.getOrDefault(event.getEventId(), 0L);
+
+                    return EventSummaryResponseDto.builder()
+                            .eventId(event.getEventId())
+                            .title(event.getTitle())
+                            .category(event.getCategory())
+                            .venueName(event.getVenue().getName())
+                            .eventDate(event.getEventDate())
+                            .minPrice(minPrice)
+                            .remainingSeats(remainingSeats)
+                            .thumbnailUrl(event.getThumbnailUrl())
+                            .eventStatus(event.getStatus())
+                            .build();
+                })
+                .sorted(minPriceOrder == null
+                        ? Comparator.comparingInt((EventSummaryResponseDto dto) -> 0)
+                        : minPriceOrder.isAscending()
+                        ? Comparator.comparingInt(EventSummaryResponseDto::getMinPrice)
+                        : Comparator.comparingInt(EventSummaryResponseDto::getMinPrice).reversed())
+                .collect(Collectors.toList());
+
+        return new PageImpl<>(content, pageable, events.getTotalElements());
     }
 
     /**
