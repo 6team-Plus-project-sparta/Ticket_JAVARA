@@ -9,4 +9,4 @@ public enum EventStatus {
     CANCELLED,  // 취소됨
     ENDED,      // 종료됨
     DELETED     // 삭제됨
-    }
+}
