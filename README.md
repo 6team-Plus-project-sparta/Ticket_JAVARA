@@ -214,7 +214,7 @@
 
 ![v1검색 두번째 이미지](img_1.png)
 
-**v1 여러 번 검색 (평균 속도)**
+**v1 여러 번 검색 (평균 속도) : 52ms**
 
 ![v1검색 여러번 이미지](img_2.png)
 
@@ -233,9 +233,9 @@
 ```java
 // application.yml
 cache:
-provider: caffeine  # caffeine | redis (Feature Flag로 전환)
+    provider: caffeine  # caffeine | redis (Feature Flag로 전환)
 lock:
-provider: lettuce   # lettuce | redisson (동일 패턴 — 팀 학습 일관성)
+    provider: lettuce   # lettuce | redisson (동일 패턴 — 팀 학습 일관성)
 ```
 
 **v2 Caffeine 캐시 MISS (첫 번째 호출) : 251ms**
@@ -271,11 +271,11 @@ provider: lettuce   # lettuce | redisson (동일 패턴 — 팀 학습 일관성
 
 #### 3단계 성능 비교 요약
 
-| 단계 | 방식 | 캐시 HIT 응답 | 한계 |
-|------|------|--------------|------|
-| v1 | 캐시 없음 | ~52ms (평균) | 매 요청 DB Full Scan |
-| v2 Caffeine | 로컬 캐시 | ~8ms | Scale-out 시 캐시 불일치 |
-| v2+ Redis | 분산 캐시 | ~64ms (네트워크 포함) | Redis 왕복 비용 발생 |
+| 단계 | 방식 | 첫 번째 호출 | 캐시 HIT 응답 | 한계 |
+|------|------|-------------|--------------|------|
+| v1 | 캐시 없음 | 241ms | 52ms (평균) | 매 요청 DB Full Scan |
+| v2 Caffeine | 로컬 캐시 | 251ms (캐시 저장 오버헤드) | 15ms | Scale-out 시 캐시 불일치 |
+| v2+ Redis | 분산 캐시 | 646ms (캐시 저장 오버헤드) | 64ms (네트워크 포함) | Redis 왕복 비용 발생 |
 
 > Redis 캐시 HIT가 Caffeine보다 느린 이유:
 > Caffeine은 JVM 힙 내부 접근이지만, Redis는 네트워크 왕복(1~2ms)이 포함됩니다.
@@ -320,8 +320,8 @@ lock:
 // BooleanBuilder 동적 검색 구현 예시
 BooleanBuilder builder = new BooleanBuilder();
 if (keyword != null) builder.and(event.title.contains(keyword));
-        if (category != null) builder.and(event.category.eq(category));
-        if (minPrice != null) builder.and(/* EXISTS 서브쿼리 */);
+if (category != null) builder.and(event.category.eq(category));
+if (minPrice != null) builder.and(/* EXISTS 서브쿼리 */);
 ```
 
 단순 조회는 JPA로, 검색처럼 조건 조합이 많은 부분은 QueryDSL로 분리했습니다.
