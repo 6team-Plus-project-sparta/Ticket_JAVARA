@@ -1,4 +1,4 @@
-# 🎫 티켓을 JAVA라 — TicketFlow
+# 🎫 티켓을 JAVA라
 
 > 스파르타 Spring 3기 | Team HOT6
 > 공연·스포츠 티켓팅 플랫폼 백엔드
