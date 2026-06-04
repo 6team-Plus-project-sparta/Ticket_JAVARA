@@ -27,7 +27,7 @@
    - [실시간 채팅 CS](#6-5-실시간-채팅-cs)
 7. [인프라 & 배포](#7-인프라--배포)
 8. [트러블슈팅](#8-트러블슈팅)
-
+9. [AI 협업 개발 방식](#-ai-협업-개발-방식)
 ---
 
 ## 1. 프로젝트 소개
@@ -100,7 +100,7 @@
 | 프로젝트 관리 | Jira |
 | 디자인 | Figma |
 | 문서화 | Notion |
-| AI 개발 도구 | Google Antigravity, KIRO |
+| AI 개발 도구 | Claude, ChatGPT, Google Antigravity, KIRO, Cursor |
 
 ---
 
@@ -589,6 +589,32 @@ HoldLockFacade (락 관리)
 **문제**: Caffeine 로컬 캐시는 서버별로 독립 → 서버 A 캐시 HIT, 서버 B 캐시 MISS → 서버 간 응답 불일치
 
 **해결**: Redis Cache-Aside 패턴으로 전환. Feature Flag(`cache.provider: redis`)로 yml 한 줄 변경만으로 코드 수정 없이 전환
+
+---
+
+## 9. AI 협업 개발 방식
+
+이 프로젝트는 개발 전 과정에서 목적에 맞게 AI 도구를 나누어 활용하였습니다.
+
+### 활용 도구
+
+| 단계 | 도구 | 활용 내용 |
+|------|------|-----------|
+| 설계 | Claude | 시스템 아키텍처 설계, ERD 구조 검토, 도메인 간 의존관계 정리 |
+| 백엔드 개발 | Google Antigravity, Claude, ChatGPT | 기능 구현 초안 작성, 오류 원인 분석 및 디버깅 |
+| 프론트엔드 개발 | Google Antigravity, KIRO, Cursor | 컴포넌트 구현, 백엔드 연동 오류 디버깅 |
+
+### AI 사용 원칙
+
+- AI가 제안한 코드는 **반드시 이해한 뒤 적용** — 동작 원리를 모르면 머지하지 않음
+- 공식 문서(Spring, Redis 등)와 **교차 검증** 후 실제 코드에 반영
+- AI 답변이 불확실하거나 충돌할 경우 팀원 및 튜터와 논의하여 결정
+
+### 예시: Claude를 활용한 설계 과정
+
+좌석 Hold + 분산락 구조를 설계할 때 Claude로 Redis TTL 기반 상태 전이 흐름을 먼저
+검토한 뒤, Spring + Redisson 구현 시에는 공식 문서를 기준으로 직접 코드를 작성하였습니다.
+AI 제안과 공식 문서가 다를 경우 공식 문서를 우선하였습니다.
 
 ---
 
